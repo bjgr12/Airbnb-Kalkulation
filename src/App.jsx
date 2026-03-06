@@ -1,41 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-
-// ─── IndexedDB helpers (store file handle across sessions) ────────────────────
-function idbGet(key) {
-  return new Promise((res) => {
-    const req = indexedDB.open("prop-analyzer-fs", 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore("h");
-    req.onsuccess = e => {
-      const r = e.target.result.transaction("h", "readonly").objectStore("h").get(key);
-      r.onsuccess = () => res(r.result ?? null);
-      r.onerror = () => res(null);
-    };
-    req.onerror = () => res(null);
-  });
-}
-function idbSet(key, val) {
-  return new Promise((res) => {
-    const req = indexedDB.open("prop-analyzer-fs", 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore("h");
-    req.onsuccess = e => {
-      const tx = e.target.result.transaction("h", "readwrite");
-      tx.objectStore("h").put(val, key);
-      tx.oncomplete = res;
-      tx.onerror = res;
-    };
-    req.onerror = res;
-  });
-}
-
-function useWindowWidth() {
-  const [width, setWidth] = useState(window.innerWidth);
-  useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return width;
-}
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 
@@ -74,22 +37,6 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const todayStr = () => new Date().toISOString().split("T")[0];
 const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const isOverdue = (d, status) => d && status !== "erledigt" && new Date(d + "T12:00:00") < new Date();
-
-// ─── Furniture Catalog ────────────────────────────────────────────────────────
-const FURNITURE_CATALOG = {
-  bed_double: { icon: "🛏️", label: "Doppelbett",    w: 2, h: 2, guests: 2, amenity: "Doppelbett" },
-  bed_single: { icon: "🛏️", label: "Einzelbett",    w: 1, h: 2, guests: 1, amenity: "Einzelbett" },
-  sofa_bed:   { icon: "🛋️", label: "Schlafsofa",    w: 2, h: 1, guests: 2, amenity: "Schlafsofa" },
-  bunk_bed:   { icon: "🪜", label: "Stockbett",     w: 1, h: 2, guests: 2, amenity: "Stockbett"  },
-  sofa:       { icon: "🛋️", label: "Sofa",          w: 3, h: 1, guests: 0 },
-  desk:       { icon: "🖥️", label: "Schreibtisch",  w: 2, h: 1, guests: 0, amenity: "Arbeitsplatz" },
-  table:      { icon: "🪑", label: "Esstisch",      w: 2, h: 1, guests: 0 },
-  wardrobe:   { icon: "🚪", label: "Schrank",       w: 2, h: 1, guests: 0 },
-  tv:         { icon: "📺", label: "TV",            w: 2, h: 1, guests: 0, amenity: "TV" },
-  kitchen:    { icon: "🍳", label: "Küchenzeile",   w: 3, h: 1, guests: 0, amenity: "Küche" },
-  fridge:     { icon: "🧊", label: "Kühlschrank",   w: 1, h: 1, guests: 0, amenity: "Kühlschrank" },
-  washing_m:  { icon: "🫧", label: "Waschmaschine", w: 1, h: 1, guests: 0, amenity: "Waschmaschine" },
-};
 
 // ─── Default Project Phases ───────────────────────────────────────────────────
 const DEFAULT_PHASES = () => [
@@ -231,7 +178,6 @@ const newProperty = () => ({
   longterm: { expectedRent: 0, vacancyMonths: 1 },
   project: { phases: DEFAULT_PHASES(), projectStart: todayStr(), targetLaunch: "" },
   umnutzung: { city: "", steps: {} },
-  floorplan: { gridCols: 12, gridRows: 8, items: [] },
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -266,8 +212,8 @@ const inputStyle = { width: "100%", background: "#1e293b", border: "1px solid #3
 
 function Field({ label, children, half }) {
   return (
-    <div style={{ marginBottom: 14, width: half ? "calc(50% - 6px)" : "100%", minWidth: half ? "200px" : undefined, boxSizing: "border-box" }}>
-      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, marginBottom: 5, textTransform: "uppercase" }}>{label}</label>
+    <div style={{ marginBottom: 14, width: half ? "calc(50% - 6px)" : "100%", boxSizing: "border-box" }}>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, marginBottom: 5, textTransform: "uppercase" }}>{label}</label>
       {children}
     </div>
   );
@@ -580,7 +526,7 @@ function TabProjekt({ p, set }) {
 }
 
 // ─── Other Tabs ───────────────────────────────────────────────────────────────
-function TabStammdaten({ p, set, isMobile }) {
+function TabStammdaten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const [geocoding, setGeocoding] = useState(false);
   const [geoError, setGeoError] = useState(false);
@@ -633,7 +579,7 @@ function TabStammdaten({ p, set, isMobile }) {
       </div>
 
       {hasCoords && (
-        <div style={{ height: isMobile ? 220 : 280, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
+        <div style={{ height: 280, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
           <MapContainer center={[p.meta.lat, p.meta.lng]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={true}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
             <Marker position={[p.meta.lat, p.meta.lng]}>
@@ -646,7 +592,7 @@ function TabStammdaten({ p, set, isMobile }) {
   );
 }
 
-function TabKarte({ properties, isMobile }) {
+function TabKarte({ properties }) {
   const located = properties.filter(p => p.meta.lat && p.meta.lng);
   const coords  = located.map(p => [p.meta.lat, p.meta.lng]);
   const center  = located.length > 0 ? [located[0].meta.lat, located[0].meta.lng] : [51.1657, 10.4515];
@@ -659,7 +605,7 @@ function TabKarte({ properties, isMobile }) {
           Noch keine Einheit mit Standort.<br />Adresse in den Stammdaten eingeben und „Standort ermitteln" klicken.
         </div>
       ) : (
-        <div style={{ height: isMobile ? 220 : 480, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
+        <div style={{ height: 480, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
           <MapContainer center={center} zoom={6} style={{ height: "100%", width: "100%" }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
             <FitBounds coords={coords} />
@@ -688,14 +634,14 @@ function TabKarte({ properties, isMobile }) {
   );
 }
 
-function TabKosten({ p, set, isMobile }) {
+function TabKosten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const totalSetup = p.setup.furnitureCost + p.setup.renovationCost + p.setup.otherSetup;
   const setupMonthly = totalSetup / (p.setup.amortMonths || 1);
   return (
     <div>
       <SectionTitle icon="💶" title="Miet- & Betriebskosten" sub="Alle laufenden und einmaligen Ausgaben" />
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>Mietkosten</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -733,14 +679,14 @@ function TabKosten({ p, set, isMobile }) {
   );
 }
 
-function TabEinnahmen({ p, set, isMobile }) {
+function TabEinnahmen({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const lt = calcLongterm(p);
   const r = calcScenario(p, p.airbnb.realisticNights);
   return (
     <div>
       <SectionTitle icon="📈" title="Einnahmenmodell" sub="Airbnb-Parameter & Vergleich Langzeitmiete" />
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>Airbnb-Parameter</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -781,7 +727,7 @@ function TabEinnahmen({ p, set, isMobile }) {
   );
 }
 
-function TabAuswertung({ p, isMobile }) {
+function TabAuswertung({ p }) {
   const scenarios = [
     { key: "pess", label: "Pessimistisch", nights: p.airbnb.pessimisticNights, color: "#f87171", dot: "🔴" },
     { key: "real", label: "Realistisch",   nights: p.airbnb.realisticNights,   color: "#fbbf24", dot: "🟡" },
@@ -792,11 +738,11 @@ function TabAuswertung({ p, isMobile }) {
   return (
     <div>
       <SectionTitle icon="📊" title="Auswertung & Rentabilität" sub="Vollständige Kalkulation aller Szenarien" />
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
         {results.map(r => (
           <div key={r.key} style={{ background: "#0f172a", borderRadius: 14, padding: 18, border: `1px solid ${r.color}33` }}>
             <div style={{ fontSize: 11, color: r.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>{r.dot} {r.label}</div>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
               <KPI label="Nächte/Monat" value={r.nights} sub={`${pct(r.occupancy)} Auslastung`} color="#e2e8f0" size={18} />
               <KPI label="Monatl. Gewinn" value={eur(r.profit)} sub={r.profit >= 0 ? "✅ positiv" : "⚠️ negativ"} color={r.profit >= 0 ? "#4ade80" : "#f87171"} size={18} />
               <KPI label="ROI (Fixkosten)" value={pct(r.roi)} sub="monatlich" color={r.roi >= 0 ? r.color : "#f87171"} size={18} />
@@ -823,7 +769,7 @@ function TabAuswertung({ p, isMobile }) {
       {p.longterm.expectedRent > 0 && (
         <div style={{ background: "#0f172a", borderRadius: 14, padding: 18, marginBottom: 16, border: "1px solid #1e293b" }}>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 14, textTransform: "uppercase" }}>🔄 Airbnb vs. Langzeitmiete</div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             {results.map(r => {
               const diff = r.profit - lt.profit;
               return (
@@ -840,7 +786,7 @@ function TabAuswertung({ p, isMobile }) {
       )}
       <div style={{ background: "#0f172a", borderRadius: 14, padding: 18, border: "1px solid #1e293b", marginBottom: 14 }}>
         <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>📅 Jahresübersicht (realistisch)</div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
           {(() => { const r = results[1]; return [
             { label: "Jahresumsatz", value: eur(r.revenue * 12), color: "#4ade80" },
             { label: "Jahreskosten", value: eur(r.totalCosts * 12), color: "#f87171" },
@@ -1051,209 +997,8 @@ function TabUmnutzung({ p, set }) {
   );
 }
 
-// ─── Floor Plan Tab ───────────────────────────────────────────────────────────
-const FP_CATEGORIES = [
-  { label: "Schlafen", types: ["bed_double", "bed_single", "sofa_bed", "bunk_bed"] },
-  { label: "Wohnen",   types: ["sofa", "desk", "table", "wardrobe", "tv"] },
-  { label: "Küche",    types: ["kitchen", "fridge", "washing_m"] },
-];
-const FP_COLORS = {
-  bed_double: "#3b82f6", bed_single: "#60a5fa", sofa_bed: "#8b5cf6", bunk_bed: "#7c3aed",
-  sofa: "#f59e0b", desk: "#10b981", table: "#6ee7b7", wardrobe: "#64748b", tv: "#0ea5e9",
-  kitchen: "#f97316", fridge: "#22d3ee", washing_m: "#a78bfa",
-};
-
-function TabGrundriss({ p, set, isMobile }) {
-  const fp = p.floorplan || { gridCols: 12, gridRows: 8, items: [] };
-  const CELL = isMobile ? 38 : 54;
-
-  const setFp = (next) => set(prev => ({ ...prev, floorplan: next }));
-  const setItems = (items) => setFp({ ...fp, items });
-
-  const maxGuests = fp.items.reduce((s, i) => s + (FURNITURE_CATALOG[i.type]?.guests ?? 0), 0);
-  const amenities = [...new Set(fp.items.map(i => FURNITURE_CATALOG[i.type]?.amenity).filter(Boolean))];
-
-  const canPlace = (x, y, w, h, excludeId = null) => {
-    if (x < 0 || y < 0 || x + w > fp.gridCols || y + h > fp.gridRows) return false;
-    return !fp.items.some(i => {
-      if (i.id === excludeId) return false;
-      return x < i.x + i.w && x + w > i.x && y < i.y + i.h && y + h > i.y;
-    });
-  };
-
-  const handleCellDrop = (e, cellX, cellY) => {
-    e.preventDefault();
-    const moveData = e.dataTransfer.getData("move");
-    if (moveData) {
-      const { id, offX, offY } = JSON.parse(moveData);
-      const item = fp.items.find(i => i.id === id);
-      if (!item) return;
-      const tx = cellX - offX;
-      const ty = cellY - offY;
-      if (!canPlace(tx, ty, item.w, item.h, id)) return;
-      setItems(fp.items.map(i => i.id === id ? { ...i, x: tx, y: ty } : i));
-    } else {
-      const type = e.dataTransfer.getData("type");
-      const def = FURNITURE_CATALOG[type];
-      if (!def) return;
-      if (!canPlace(cellX, cellY, def.w, def.h)) return;
-      setItems([...fp.items, { id: uid(), type, x: cellX, y: cellY, w: def.w, h: def.h }]);
-    }
-  };
-
-  return (
-    <div>
-      <SectionTitle icon="🏠" title="Grundriss-Planer" sub="Möbel per Drag & Drop platzieren · Gästeanzahl und Ausstattung werden automatisch ermittelt" />
-
-      {/* Grid size + clear */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <label style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5 }}>BREITE</label>
-          <input type="number" min={4} max={20} value={fp.gridCols}
-            onChange={e => setFp({ ...fp, gridCols: Math.max(4, Math.min(20, +e.target.value || 12)) })}
-            style={{ ...inputStyle, width: 64, padding: "6px 10px", fontSize: 13 }} />
-          <span style={{ fontSize: 11, color: "#475569" }}>Spalten</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <label style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5 }}>HÖHE</label>
-          <input type="number" min={4} max={16} value={fp.gridRows}
-            onChange={e => setFp({ ...fp, gridRows: Math.max(4, Math.min(16, +e.target.value || 8)) })}
-            style={{ ...inputStyle, width: 64, padding: "6px 10px", fontSize: 13 }} />
-          <span style={{ fontSize: 11, color: "#475569" }}>Reihen</span>
-        </div>
-        <button onClick={() => setItems([])}
-          style={{ background: "transparent", border: "1px solid #ef444433", borderRadius: 8, padding: "6px 14px", color: "#ef4444", fontSize: 11, cursor: "pointer", fontFamily: "'DM Mono', monospace", marginLeft: "auto" }}>
-          🗑 Alles löschen
-        </button>
-      </div>
-
-      {/* Palette + Canvas */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-
-        {/* Furniture palette */}
-        <div style={{ width: isMobile ? 120 : 148, flexShrink: 0 }}>
-          {FP_CATEGORIES.map(cat => (
-            <div key={cat.label} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 7, textTransform: "uppercase" }}>{cat.label}</div>
-              {cat.types.map(type => {
-                const def = FURNITURE_CATALOG[type];
-                const col = FP_COLORS[type] || "#64748b";
-                return (
-                  <div key={type} draggable
-                    onDragStart={e => { e.dataTransfer.setData("type", type); e.dataTransfer.effectAllowed = "copy"; }}
-                    style={{ background: "#1e293b", borderRadius: 8, padding: "7px 9px", marginBottom: 5, cursor: "grab", display: "flex", alignItems: "center", gap: 7, border: "1px solid #334155", userSelect: "none" }}>
-                    <span style={{ fontSize: 15 }}>{def.icon}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: "#e2e8f0", fontWeight: 600, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{def.label}</div>
-                      <div style={{ fontSize: 9, color: col }}>
-                        {def.w}×{def.h}{def.guests > 0 ? " · " + def.guests + (def.guests > 1 ? " Gäste" : " Gast") : ""}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-
-        {/* Canvas */}
-        <div style={{ flex: 1, overflowX: "auto" }}>
-          <div style={{
-            position: "relative",
-            width: fp.gridCols * CELL,
-            height: fp.gridRows * CELL,
-            backgroundColor: "#0a1628",
-            backgroundImage: `linear-gradient(to right, #1e293b 1px, transparent 1px), linear-gradient(to bottom, #1e293b 1px, transparent 1px)`,
-            backgroundSize: `${CELL}px ${CELL}px`,
-            border: "1px solid #1e293b",
-            borderRadius: 8,
-            flexShrink: 0,
-          }}>
-            {/* Drop-target cells */}
-            {Array.from({ length: fp.gridRows }, (_, row) =>
-              Array.from({ length: fp.gridCols }, (_, col) => (
-                <div key={col + "-" + row}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => handleCellDrop(e, col, row)}
-                  style={{ position: "absolute", left: col * CELL, top: row * CELL, width: CELL, height: CELL, boxSizing: "border-box" }}
-                />
-              ))
-            )}
-
-            {/* Placed items */}
-            {fp.items.map(item => {
-              const def = FURNITURE_CATALOG[item.type];
-              const col = FP_COLORS[item.type] || "#64748b";
-              return (
-                <div key={item.id} draggable
-                  onDragStart={e => {
-                    const offX = Math.floor(e.nativeEvent.offsetX / CELL);
-                    const offY = Math.floor(e.nativeEvent.offsetY / CELL);
-                    e.dataTransfer.setData("move", JSON.stringify({ id: item.id, offX, offY }));
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  style={{
-                    position: "absolute",
-                    left: item.x * CELL + 2,
-                    top: item.y * CELL + 2,
-                    width: item.w * CELL - 4,
-                    height: item.h * CELL - 4,
-                    backgroundColor: col + "22",
-                    border: `2px solid ${col}`,
-                    borderRadius: 6,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "grab",
-                    userSelect: "none",
-                    overflow: "hidden",
-                    boxSizing: "border-box",
-                  }}>
-                  <span style={{ fontSize: item.h > 1 ? (isMobile ? 16 : 20) : (isMobile ? 12 : 15) }}>{def?.icon}</span>
-                  {(item.h > 1 || item.w > 2) && !isMobile && (
-                    <div style={{ fontSize: 9, color: col, fontWeight: 700, textAlign: "center", lineHeight: 1.2, marginTop: 2, maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {def?.label}
-                    </div>
-                  )}
-                  <button onClick={e => { e.stopPropagation(); setItems(fp.items.filter(i => i.id !== item.id)); }}
-                    style={{ position: "absolute", top: 1, right: 3, background: "transparent", border: "none", color: "#ef4444", fontSize: 10, cursor: "pointer", lineHeight: 1, padding: 0 }}>
-                    ✕
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div style={{ marginTop: 20, background: "#0a1628", borderRadius: 14, padding: 18, border: "1px solid #1e293b", display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ background: "#0f172a", borderRadius: 12, padding: "14px 20px", border: "1px solid #1e293b", textAlign: "center", minWidth: 100 }}>
-          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>Max. Gäste</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: maxGuests > 0 ? "#4ade80" : "#334155", fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>{maxGuests}</div>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4 }}>aus Schlafplätzen</div>
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 10, textTransform: "uppercase" }}>Ausstattungsmerkmale</div>
-          {amenities.length === 0 ? (
-            <div style={{ fontSize: 12, color: "#334155" }}>Noch keine Möbel mit Ausstattungsmerkmal platziert.</div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {amenities.map(a => (
-                <span key={a} style={{ background: "#1e293b", borderRadius: 20, padding: "4px 12px", fontSize: 11, color: "#4ade80", border: "1px solid #4ade8033", fontWeight: 600 }}>{a}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const TABS = [
   { id: "stammdaten", label: "Objekt",      icon: "🏢" },
-  { id: "grundriss",  label: "Grundriss",   icon: "🏠" },
   { id: "kosten",     label: "Kosten",      icon: "💶" },
   { id: "einnahmen",  label: "Einnahmen",   icon: "📈" },
   { id: "auswertung", label: "Auswertung",  icon: "📊" },
@@ -1269,63 +1014,23 @@ export default function App() {
   const [tab, setTab] = useState("stammdaten");
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [fileHandle, setFileHandle] = useState(null);
-  const [fileName, setFileName] = useState(null);
-  const windowWidth = useWindowWidth();
-  const isMobile = windowWidth <= 768;
 
   useEffect(() => {
     (async () => {
-      const apply = (data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setProperties(data);
-          setActiveId(data[0].id);
-          setCurrent(data[0]);
-        }
-      };
-      // Try linked file first (File System Access API – Chrome/Edge)
-      if (window.showSaveFilePicker) {
-        try {
-          const handle = await idbGet("fh");
-          if (handle) {
-            const perm = await handle.queryPermission({ mode: "readwrite" });
-            if (perm === "granted") {
-              const file = await handle.getFile();
-              apply(JSON.parse(await file.text()));
-              setFileHandle(handle);
-              setFileName(handle.name);
-              setLoaded(true);
-              return;
-            } else {
-              // Permission needs a user gesture – will be requested on next Speichern click
-              setFileHandle(handle);
-              setFileName(handle.name);
-            }
-          }
-        } catch {}
-      }
-      // Fallback: localStorage
       try {
         const raw = localStorage.getItem("prop-analyzer-v3");
-        if (raw) apply(JSON.parse(raw));
+        if (raw) {
+          const data = JSON.parse(raw);
+          setProperties(data);
+          if (data.length > 0) { setActiveId(data[0].id); setCurrent(data[0]); }
+        }
       } catch {}
       setLoaded(true);
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const persist = useCallback(async (list) => {
     try { localStorage.setItem("prop-analyzer-v3", JSON.stringify(list)); } catch {}
-  }, []);
-
-  const writeToFile = useCallback(async (handle, data) => {
-    try {
-      const perm = await handle.requestPermission({ mode: "readwrite" });
-      if (perm !== "granted") return;
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(data, null, 2));
-      await writable.close();
-    } catch {}
   }, []);
 
   const handleSave = async () => {
@@ -1333,7 +1038,6 @@ export default function App() {
     const updated = exists ? properties.map(p => p.id === current.id ? current : p) : [...properties, current];
     setProperties(updated); setActiveId(current.id);
     await persist(updated);
-    if (fileHandle) await writeToFile(fileHandle, updated);
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
@@ -1342,43 +1046,7 @@ export default function App() {
   const handleDelete = async (id) => {
     const updated = properties.filter(p => p.id !== id);
     setProperties(updated); await persist(updated);
-    if (fileHandle) await writeToFile(fileHandle, updated);
     if (activeId === id) handleNew();
-  };
-
-  const handleLinkFile = async () => {
-    if (!window.showSaveFilePicker) return;
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: "airbnb-daten.json",
-        types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-      });
-      await writeToFile(handle, properties);
-      await idbSet("fh", handle);
-      setFileHandle(handle);
-      setFileName(handle.name);
-    } catch {} // user cancelled
-  };
-
-  const handleImportFile = async () => {
-    if (!window.showOpenFilePicker) return;
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-      });
-      const file = await handle.getFile();
-      const data = JSON.parse(await file.text());
-      if (!Array.isArray(data)) return;
-      setProperties(data);
-      if (data.length > 0) { setActiveId(data[0].id); setCurrent(data[0]); }
-      await persist(data);
-      const perm = await handle.requestPermission({ mode: "readwrite" });
-      if (perm === "granted") {
-        await idbSet("fh", handle);
-        setFileHandle(handle);
-        setFileName(handle.name);
-      }
-    } catch {} // user cancelled or parse error
   };
 
   const projProgress = (p) => {
@@ -1389,116 +1057,74 @@ export default function App() {
 
   if (!loaded) return <div style={{ background: "#0f172a", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontFamily: "'DM Mono', monospace" }}>Lade…</div>;
 
-  const sidebarContent = (
-    <>
-      <div style={{ padding: "20px 16px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", letterSpacing: 2, marginBottom: 4 }}>PROPERTY</div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#f1f5f9", fontWeight: 800 }}>Analyzer</div>
-        </div>
-        {isMobile && (
-          <button onClick={() => setSidebarOpen(false)} style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
-        )}
-      </div>
-      <div style={{ padding: 12, flex: 1, overflowY: "auto" }}>
-        <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Objekte</div>
-        {properties.length === 0 && <div style={{ fontSize: 11, color: "#334155", padding: "8px 0" }}>Noch keine Objekte.</div>}
-        {properties.map(p => {
-          const pb = projProgress(p);
-          return (
-            <div key={p.id} onClick={() => { handleSelect(p); setSidebarOpen(false); }}
-              style={{ borderRadius: 8, padding: "10px", marginBottom: 6, cursor: "pointer", background: activeId === p.id ? "#1e3a5f" : "transparent", border: `1px solid ${activeId === p.id ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.meta.name || "Unbenannt"}</span>
-                {pb !== null && <span style={{ fontSize: 10, color: pb === 100 ? "#4ade80" : "#64748b", flexShrink: 0, marginLeft: 4 }}>{pb}%</span>}
-              </div>
-              <div style={{ fontSize: 10, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m²</div>
-              <div style={{ fontSize: 10, color: "#64748b" }}>{eur(p.costs.coldRent)}/Monat KM</div>
-              {pb !== null && pb > 0 && (
-                <div style={{ height: 2, background: "#1e293b", borderRadius: 1, marginTop: 5 }}>
-                  <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 1 }} />
-                </div>
-              )}
-              <div onClick={e => { e.stopPropagation(); handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ padding: 12, borderTop: "1px solid #1e293b" }}>
-        {window.showSaveFilePicker && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: fileName ? "#4ade80" : "#475569", marginBottom: 6, display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
-              {fileName ? <><span>✓</span><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span></> : <span>Keine Datei verknüpft</span>}
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={handleLinkFile} title={fileName ? "Andere Datei wählen" : "JSON-Datei auf der Festplatte verknüpfen"}
-                style={{ flex: 1, background: "transparent", border: "1px solid #334155", borderRadius: 6, padding: "6px 0", color: "#94a3b8", fontSize: 10, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
-                {fileName ? "📁 Wechseln" : "📁 Verknüpfen"}
-              </button>
-              <button onClick={handleImportFile} title="Bestehende JSON-Datei laden und verknüpfen"
-                style={{ flex: 1, background: "transparent", border: "1px solid #334155", borderRadius: 6, padding: "6px 0", color: "#94a3b8", fontSize: 10, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
-                📥 Importieren
-              </button>
-            </div>
-          </div>
-        )}
-        <button onClick={() => { handleNew(); setSidebarOpen(false); }} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "9px 0", color: "#e2e8f0", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
-          + Neues Objekt
-        </button>
-      </div>
-    </>
-  );
-
   return (
     <div style={{ fontFamily: "'DM Mono', monospace", background: "#0f172a", minHeight: "100vh", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
 
-      {/* Sidebar – Desktop: always visible, Mobile: overlay drawer */}
-      {!isMobile && (
-        <div style={{ width: 224, background: "#020617", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-          {sidebarContent}
+      {/* Sidebar */}
+      <div style={{ width: 224, background: "#020617", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ padding: "20px 16px", borderBottom: "1px solid #1e293b" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", letterSpacing: 2, marginBottom: 4 }}>PROPERTY</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#f1f5f9", fontWeight: 800 }}>Analyzer</div>
         </div>
-      )}
-      {isMobile && sidebarOpen && (
-        <>
-          <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 40 }} />
-          <div style={{ position: "fixed", top: 0, left: 0, bottom: 0, width: 260, background: "#020617", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", zIndex: 50, overflowY: "auto" }}>
-            {sidebarContent}
-          </div>
-        </>
-      )}
-
-      {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", padding: isMobile ? "10px 12px" : "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16 }}>
-            {isMobile && (
-              <button onClick={() => setSidebarOpen(true)} style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 0 }}>☰</button>
-            )}
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 14 : 16, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.meta.name || "Neues Objekt"}</span>
-            {!isMobile && current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
-          </div>
-          <button onClick={handleSave} style={{ background: saved ? "#16a34a" : "#1d4ed8", border: "none", borderRadius: 8, padding: isMobile ? "7px 12px" : "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s", flexShrink: 0 }}>
-            {saved ? "✓" : "💾"}{!isMobile && (saved ? " Gespeichert" : " Speichern")}
+        <div style={{ padding: 12, flex: 1, overflowY: "auto" }}>
+          <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Objekte</div>
+          {properties.length === 0 && <div style={{ fontSize: 11, color: "#334155", padding: "8px 0" }}>Noch keine Objekte.</div>}
+          {properties.map(p => {
+            const pb = projProgress(p);
+            return (
+              <div key={p.id} onClick={() => handleSelect(p)}
+                style={{ borderRadius: 8, padding: "10px", marginBottom: 6, cursor: "pointer", background: activeId === p.id ? "#1e3a5f" : "transparent", border: `1px solid ${activeId === p.id ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.meta.name || "Unbenannt"}</span>
+                  {pb !== null && <span style={{ fontSize: 10, color: pb === 100 ? "#4ade80" : "#64748b", flexShrink: 0, marginLeft: 4 }}>{pb}%</span>}
+                </div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m²</div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>{eur(p.costs.coldRent)}/Monat KM</div>
+                {pb !== null && pb > 0 && (
+                  <div style={{ height: 2, background: "#1e293b", borderRadius: 1, marginTop: 5 }}>
+                    <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 1 }} />
+                  </div>
+                )}
+                <div onClick={e => { e.stopPropagation(); handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding: 12, borderTop: "1px solid #1e293b" }}>
+          <button onClick={handleNew} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "9px 0", color: "#e2e8f0", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+            + Neues Objekt
           </button>
         </div>
-        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", display: "flex", padding: isMobile ? "0 4px" : "0 24px", overflowX: "auto" }}>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#f1f5f9" }}>{current.meta.name || "Neues Objekt"}</span>
+            {current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
+          </div>
+          <button onClick={handleSave} style={{ background: saved ? "#16a34a" : "#1d4ed8", border: "none", borderRadius: 8, padding: "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s" }}>
+            {saved ? "✓ Gespeichert" : "💾 Speichern"}
+          </button>
+        </div>
+        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", display: "flex", padding: "0 24px" }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ background: "none", border: "none", padding: isMobile ? "10px 10px" : "12px 16px", color: tab === t.id ? "#4ade80" : "#64748b", borderBottom: tab === t.id ? "2px solid #4ade80" : "2px solid transparent", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontFamily: "'DM Mono', monospace", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap" }}>
-              {t.icon}{!isMobile && ` ${t.label}`}
+              style={{ background: "none", border: "none", padding: "12px 16px", color: tab === t.id ? "#4ade80" : "#64748b", borderBottom: tab === t.id ? "2px solid #4ade80" : "2px solid transparent", cursor: "pointer", fontSize: 13, fontFamily: "'DM Mono', monospace", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }}>
+              {t.icon} {t.label}
             </button>
           ))}
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? 16 : 28 }}>
-          {tab === "stammdaten" && <TabStammdaten p={current} set={setCurrent} isMobile={isMobile} />}
-          {tab === "grundriss"  && <TabGrundriss  p={current} set={setCurrent} isMobile={isMobile} />}
-          {tab === "kosten"     && <TabKosten p={current} set={setCurrent} isMobile={isMobile} />}
-          {tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} isMobile={isMobile} />}
-          {tab === "auswertung" && <TabAuswertung p={current} isMobile={isMobile} />}
+        <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+          {tab === "stammdaten" && <TabStammdaten p={current} set={setCurrent} />}
+          {tab === "kosten"     && <TabKosten p={current} set={setCurrent} />}
+          {tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
+          {tab === "auswertung" && <TabAuswertung p={current} />}
           {tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
           {tab === "umnutzung" && <TabUmnutzung p={current} set={setCurrent} />}
-          {tab === "karte"     && <TabKarte properties={properties} isMobile={isMobile} />}
+          {tab === "karte"     && <TabKarte properties={properties} />}
         </div>
       </div>
     </div>
