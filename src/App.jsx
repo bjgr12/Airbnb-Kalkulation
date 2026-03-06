@@ -1,4 +1,35 @@
 import { useState, useEffect, useCallback } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+
+// Fix Leaflet default marker icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl:       "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl:     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
+
+async function geocodeAddress(address, zip, city) {
+  const q = `${address}, ${zip} ${city}, Deutschland`;
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
+      headers: { "Accept-Language": "de" },
+    });
+    const data = await res.json();
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {}
+  return null;
+}
+
+function FitBounds({ coords }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords.length === 1) { map.setView(coords[0], 14); }
+    else if (coords.length > 1) { map.fitBounds(coords, { padding: [40, 40] }); }
+  }, [coords, map]);
+  return null;
+}
 
 const eur = (n) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n ?? 0);
 const pct = (n) => `${(n ?? 0).toFixed(1)} %`;
@@ -139,7 +170,7 @@ const DEFAULT_PHASES = () => [
 // ─── Default Property ─────────────────────────────────────────────────────────
 const newProperty = () => ({
   id: uid(),
-  meta: { name: "", address: "", city: "", zip: "", type: "studio", sqm: 25, rooms: 1, floor: 0, builtYear: 2000, condition: "gut", notes: "" },
+  meta: { name: "", address: "", city: "", zip: "", type: "studio", sqm: 25, rooms: 1, floor: 0, builtYear: 2000, condition: "gut", notes: "", lat: null, lng: null },
   costs: { coldRent: 0, nk: 0, deposit: 0, leaseDuration: 12 },
   setup: { furnitureCost: 3000, renovationCost: 0, otherSetup: 0, amortMonths: 24 },
   operations: { internet: 30, supplies: 40, insurance: 45, management: 0, misc: 0 },
@@ -497,6 +528,20 @@ function TabProjekt({ p, set }) {
 // ─── Other Tabs ───────────────────────────────────────────────────────────────
 function TabStammdaten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
+  const [geocoding, setGeocoding] = useState(false);
+  const [geoError, setGeoError] = useState(false);
+
+  const handleGeocode = async () => {
+    setGeocoding(true); setGeoError(false);
+    const coords = await geocodeAddress(p.meta.address, p.meta.zip, p.meta.city);
+    setGeocoding(false);
+    if (coords) set(prev => ({ ...prev, meta: { ...prev.meta, ...coords } }));
+    else setGeoError(true);
+  };
+
+  const hasCoords = p.meta.lat && p.meta.lng;
+  const canGeocode = p.meta.address && p.meta.city;
+
   return (
     <div>
       <SectionTitle icon="🏢" title="Objektdaten" sub="Basisdaten zur Immobilie" />
@@ -520,6 +565,70 @@ function TabStammdaten({ p, set }) {
         <Field label="Notizen / Besonderheiten">
           <textarea value={p.meta.notes} onChange={e => u("meta","notes")(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
         </Field>
+      </div>
+
+      <SectionTitle icon="📍" title="Standort" sub="Adresse auf Karte verorten" />
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={handleGeocode} disabled={!canGeocode || geocoding}
+          style={{ background: canGeocode ? "#1d4ed8" : "#1e293b", border: "none", borderRadius: 8, padding: "9px 18px", color: canGeocode ? "white" : "#475569", fontSize: 13, cursor: canGeocode ? "pointer" : "default", fontFamily: "'DM Mono', monospace" }}>
+          {geocoding ? "Suche…" : hasCoords ? "📍 Standort aktualisieren" : "📍 Standort ermitteln"}
+        </button>
+        {hasCoords && <span style={{ fontSize: 11, color: "#4ade80" }}>✓ Koordinaten gespeichert</span>}
+        {geoError && <span style={{ fontSize: 11, color: "#ef4444" }}>Adresse nicht gefunden – bitte prüfen</span>}
+        {!canGeocode && <span style={{ fontSize: 11, color: "#475569" }}>Straße und Stadt eingeben</span>}
+      </div>
+
+      {hasCoords && (
+        <div style={{ height: 280, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
+          <MapContainer center={[p.meta.lat, p.meta.lng]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={true}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
+            <Marker position={[p.meta.lat, p.meta.lng]}>
+              <Popup>{p.meta.name || p.meta.address}<br />{p.meta.zip} {p.meta.city}</Popup>
+            </Marker>
+          </MapContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabKarte({ properties }) {
+  const located = properties.filter(p => p.meta.lat && p.meta.lng);
+  const coords  = located.map(p => [p.meta.lat, p.meta.lng]);
+  const center  = located.length > 0 ? [located[0].meta.lat, located[0].meta.lng] : [51.1657, 10.4515];
+
+  return (
+    <div>
+      <SectionTitle icon="🗺️" title="Übersichtskarte" sub="Alle Einheiten mit Standort" />
+      {located.length === 0 ? (
+        <div style={{ background: "#1e293b", borderRadius: 10, padding: 32, textAlign: "center", color: "#475569", fontSize: 13 }}>
+          Noch keine Einheit mit Standort.<br />Adresse in den Stammdaten eingeben und „Standort ermitteln" klicken.
+        </div>
+      ) : (
+        <div style={{ height: 480, borderRadius: 10, overflow: "hidden", border: "1px solid #334155" }}>
+          <MapContainer center={center} zoom={6} style={{ height: "100%", width: "100%" }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
+            <FitBounds coords={coords} />
+            {located.map(p => (
+              <Marker key={p.id} position={[p.meta.lat, p.meta.lng]}>
+                <Popup>
+                  <strong>{p.meta.name || "Einheit"}</strong><br />
+                  {p.meta.address}<br />
+                  {p.meta.zip} {p.meta.city}<br />
+                  {p.meta.sqm} m² · {p.meta.rooms} Zi.
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      )}
+      <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 10 }}>
+        {located.map(p => (
+          <div key={p.id} style={{ background: "#1e293b", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#94a3b8", border: "1px solid #334155" }}>
+            <div style={{ fontWeight: 700, color: "#f1f5f9", marginBottom: 2 }}>{p.meta.name || "Einheit"}</div>
+            <div>{p.meta.address}, {p.meta.city}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -895,6 +1004,7 @@ const TABS = [
   { id: "auswertung", label: "Auswertung",  icon: "📊" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
   { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
+  { id: "karte",      label: "Karte",        icon: "🗺️" },
 ];
 
 export default function App() {
@@ -1014,6 +1124,7 @@ export default function App() {
           {tab === "auswertung" && <TabAuswertung p={current} />}
           {tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
           {tab === "umnutzung" && <TabUmnutzung p={current} set={setCurrent} />}
+          {tab === "karte"     && <TabKarte properties={properties} />}
         </div>
       </div>
     </div>
