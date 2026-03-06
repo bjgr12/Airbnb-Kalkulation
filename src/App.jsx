@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 
@@ -37,6 +37,46 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const todayStr = () => new Date().toISOString().split("T")[0];
 const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const isOverdue = (d, status) => d && status !== "erledigt" && new Date(d + "T12:00:00") < new Date();
+
+// ─── Photo IndexedDB helpers ──────────────────────────────────────────────────
+function photoDbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open("prop-photos", 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore("p");
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = () => rej();
+  });
+}
+async function photoDbGet(id) {
+  try {
+    const db = await photoDbOpen();
+    return await new Promise(res => {
+      const r = db.transaction("p", "readonly").objectStore("p").get(id);
+      r.onsuccess = () => res(r.result ?? null);
+      r.onerror = () => res(null);
+    });
+  } catch { return null; }
+}
+async function photoDbSet(id, val) {
+  try {
+    const db = await photoDbOpen();
+    await new Promise(res => {
+      const tx = db.transaction("p", "readwrite");
+      tx.objectStore("p").put(val, id);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  } catch {}
+}
+async function photoDbDel(id) {
+  try {
+    const db = await photoDbOpen();
+    await new Promise(res => {
+      const tx = db.transaction("p", "readwrite");
+      tx.objectStore("p").delete(id);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  } catch {}
+}
 
 // ─── Default Project Phases ───────────────────────────────────────────────────
 const DEFAULT_PHASES = () => [
@@ -178,6 +218,7 @@ const newProperty = () => ({
   longterm: { expectedRent: 0, vacancyMonths: 1 },
   project: { phases: DEFAULT_PHASES(), projectStart: todayStr(), targetLaunch: "" },
   umnutzung: { city: "", steps: {} },
+  photos: [],
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -526,6 +567,96 @@ function TabProjekt({ p, set }) {
 }
 
 // ─── Other Tabs ───────────────────────────────────────────────────────────────
+// ─── Photo Gallery ────────────────────────────────────────────────────────────
+function PhotoGallery({ p, set }) {
+  const photos = p.photos || [];
+  const [urls, setUrls] = useState({});
+  const [lightbox, setLightbox] = useState(null);
+  const fileRef = useRef();
+
+  useEffect(() => {
+    if (photos.length === 0) return;
+    Promise.all(photos.map(ph => photoDbGet(ph.id).then(url => [ph.id, url])))
+      .then(entries => setUrls(Object.fromEntries(entries.filter(([, v]) => v))));
+  }, [photos]);
+
+  const handleFiles = async (files) => {
+    const added = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      const dataUrl = await new Promise(res => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result);
+        reader.readAsDataURL(file);
+      });
+      const id = uid();
+      await photoDbSet(id, dataUrl);
+      setUrls(prev => ({ ...prev, [id]: dataUrl }));
+      added.push({ id, name: file.name, createdAt: new Date().toISOString() });
+    }
+    if (added.length > 0)
+      set(prev => ({ ...prev, photos: [...(prev.photos || []), ...added] }));
+  };
+
+  const handleDelete = async (id) => {
+    await photoDbDel(id);
+    setUrls(prev => { const n = { ...prev }; delete n[id]; return n; });
+    set(prev => ({ ...prev, photos: (prev.photos || []).filter(ph => ph.id !== id) }));
+    if (lightbox === id) setLightbox(null);
+  };
+
+  return (
+    <div>
+      <SectionTitle icon="📷" title="Fotos" sub="Bilder der Einheit hochladen und verwalten" />
+
+      {/* Upload zone */}
+      <div
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        onClick={() => fileRef.current?.click()}
+        style={{ border: "2px dashed #334155", borderRadius: 12, padding: "28px 16px", textAlign: "center", cursor: "pointer", marginBottom: 20, background: "#0a1628", transition: "border-color 0.2s" }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = "#475569"}
+        onMouseLeave={e => e.currentTarget.style.borderColor = "#334155"}
+      >
+        <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: "none" }}
+          onChange={e => handleFiles(e.target.files)} />
+        <div style={{ fontSize: 28, marginBottom: 8 }}>📷</div>
+        <div style={{ fontSize: 13, color: "#64748b" }}>Fotos auswählen oder hier ablegen</div>
+        <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>JPG, PNG, WEBP · beliebig viele</div>
+      </div>
+
+      {/* Grid */}
+      {photos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+          {photos.map(ph => (
+            <div key={ph.id} onClick={() => setLightbox(ph.id)}
+              style={{ position: "relative", aspectRatio: "4/3", borderRadius: 10, overflow: "hidden", background: "#1e293b", cursor: "pointer" }}>
+              {urls[ph.id]
+                ? <img src={urls[ph.id]} alt={ph.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 20 }}>⏳</div>
+              }
+              <button onClick={e => { e.stopPropagation(); handleDelete(ph.id); }}
+                style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", border: "none", borderRadius: 6, color: "#f87171", fontSize: 11, cursor: "pointer", padding: "2px 7px", lineHeight: 1.6 }}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && urls[lightbox] && (
+        <div onClick={() => setLightbox(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <img src={urls[lightbox]} alt="" style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }} />
+          <button onClick={() => setLightbox(null)}
+            style={{ position: "absolute", top: 20, right: 24, background: "transparent", border: "none", color: "white", fontSize: 30, cursor: "pointer", lineHeight: 1 }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabStammdaten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const [geocoding, setGeocoding] = useState(false);
@@ -588,6 +719,10 @@ function TabStammdaten({ p, set }) {
           </MapContainer>
         </div>
       )}
+
+      <div style={{ marginTop: 28 }}>
+        <PhotoGallery p={p} set={set} />
+      </div>
     </div>
   );
 }
