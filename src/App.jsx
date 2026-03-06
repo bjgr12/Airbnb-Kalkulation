@@ -146,6 +146,7 @@ const newProperty = () => ({
   airbnb: { nightlyRate: 70, platformFee: 3, cleaningFee: 40, avgStay: 2.5, pessimisticNights: 10, realisticNights: 18, optimisticNights: 24 },
   longterm: { expectedRent: 0, vacancyMonths: 1 },
   project: { phases: DEFAULT_PHASES(), projectStart: todayStr(), targetLaunch: "" },
+  umnutzung: { city: "", steps: {} },
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -693,12 +694,207 @@ function TabAuswertung({ p }) {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+// ─── Umnutzungs-Guideline ─────────────────────────────────────────────────────
+const CITY_INFOS = {
+  berlin:      { name: "Berlin",       registrierung: true,  behoerde: "Bezirksamt (online)",           cityTax: "5 %", hinweis: "Sehr strikte Kontrolle. Ohne Registrierungsnummer wird das Airbnb-Inserat deaktiviert. Voranfrage beim Bezirksamt und Bauamt frühzeitig stellen." },
+  muenchen:    { name: "München",      registrierung: true,  behoerde: "Kreisverwaltungsreferat (KVR)", cityTax: "–",   hinweis: "Sehr angespannter Markt. Baugenehmigung für Nutzungsänderung dauert oft 3–6 Monate." },
+  hamburg:     { name: "Hamburg",      registrierung: true,  behoerde: "Bezirksamt",                    cityTax: "–",   hinweis: "Registrierungspflicht seit 2023. Wohnraumschutzgesetz gilt primär für Wohnraum – Büroflächen separat prüfen." },
+  frankfurt:   { name: "Frankfurt",    registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Bebauungsplan genau prüfen – nicht in jedem Gewerbegebiet ist Beherbergung zulässig." },
+  koeln:       { name: "Köln",         registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Vergleichsweise pragmatisches Bauamt. Voranfrage lohnt sich." },
+  stuttgart:   { name: "Stuttgart",    registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Bebauungsplan genau prüfen – Mischgebiete oft genehmigungsfähig." },
+  duesseldorf: { name: "Düsseldorf",   registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Bauamt i.d.R. pragmatisch bei Mischnutzung." },
+  nuernberg:   { name: "Nürnberg",     registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Weniger streng als Großstädte – Baugenehmigung trotzdem erforderlich." },
+  leipzig:     { name: "Leipzig",      registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Wachsende Tourismusstadt, Nutzungsänderung oft genehmigungsfähig." },
+  dresden:     { name: "Dresden",      registrierung: false, behoerde: "–",                             cityTax: "–",   hinweis: "Tourismuszonen prüfen. Bauamt vorab kontaktieren." },
+  sonstiges:   { name: "Andere Stadt", registrierung: null,  behoerde: "Lokales Bauamt / Ordnungsamt",  cityTax: "Prüfen", hinweis: "Bei kleineren Städten oft pragmatischere Behörden. Lokale Satzungen zum Zweckentfremdungsverbot prüfen." },
+};
+
+const UMNUTZUNG_STEPS = [
+  {
+    id: "u1", phase: "Vorbereitung", color: "#60a5fa",
+    title: "Mietvertrag & Vermieter-Genehmigung",
+    description: "Ohne schriftliche Genehmigung des Vermieters ist alles andere hinfällig. Prüfe zuerst, ob dein Gewerbemietvertrag eine Untervermietung zu Beherbergungszwecken erlaubt – viele schließen das explizit aus.",
+    warning: "Ohne Genehmigung riskierst du fristlose Kündigung – selbst wenn Airbnb und Behörden zustimmen.",
+    checklist: ["Mietvertrag auf Untervermietungs- und Nutzungsklauseln geprüft", "Schriftliches Nutzungskonzept an Vermieter übermittelt", "Schriftliche Genehmigung vom Vermieter erhalten"],
+    cityNote: () => null,
+  },
+  {
+    id: "u2", phase: "Baurecht", color: "#f59e0b",
+    title: "Bebauungsplan & Voranfrage Bauamt",
+    description: "Der Bebauungsplan legt fest, welche Nutzungsarten in einem Gebiet zulässig sind. Beherbergung ist nicht überall erlaubt. Eine formlose Voranfrage beim Bauamt klärt die Machbarkeit, bevor du einen kostenpflichtigen Antrag stellst.",
+    warning: "Ohne Baugenehmigung ist der Betrieb illegal – auch wenn Vermieter und Airbnb zustimmen.",
+    checklist: ["Bebauungsplan eingesehen (Bauamt oder Stadtplan online)", "Nutzungsart geprüft: Mischgebiet / Kerngebiet / Sondergebiet", "Formlose Voranfrage beim Bauamt gestellt", "Positives Feedback vom Bauamt erhalten"],
+    cityNote: (c) => c?.hinweis,
+  },
+  {
+    id: "u3", phase: "Baurecht", color: "#f59e0b",
+    title: "Baugenehmigung – Nutzungsänderung",
+    description: "Die Umnutzung von Büro zu Beherbergung ist in Deutschland baugenehmigungspflichtig. Du brauchst Grundrisszeichnungen, ein Nutzungskonzept und Brandschutznachweise. Ein Architekt oder Bausachverständiger ist hier meist notwendig.",
+    warning: "Bearbeitungszeit: 2–6 Monate, in Großstädten auch länger. Diesen Zeitpuffer fest einplanen.",
+    checklist: ["Architekt oder Bausachverständigen beauftragt", "Bauantrag vollständig eingereicht", "Baugenehmigung für Nutzungsänderung erhalten"],
+    cityNote: () => null,
+  },
+  {
+    id: "u4", phase: "Brandschutz", color: "#ef4444",
+    title: "Brandschutz & Beherbergungsstättenverordnung",
+    description: "Für gewerbliche Beherbergung gelten besondere Brandschutzvorschriften nach der Beherbergungsstättenverordnung des jeweiligen Bundeslandes. Ab bestimmten Größen sind Notbeleuchtung, Fluchtwegbeschilderung und ein Brandschutzkonzept Pflicht.",
+    warning: "Verstöße können zur sofortigen Betriebsschließung und persönlicher Haftung führen.",
+    checklist: ["Beherbergungsstättenverordnung des Bundeslandes geprüft", "Rauchmelderpflicht erfüllt (jedes Zimmer + Flure)", "Fluchtwegbeschilderung angebracht", "Notbeleuchtung installiert (falls erforderlich)", "Feuerlöscher vorhanden", "Brandschutzgutachten eingeholt (ab >12 Betten oder >2 Etagen)"],
+    cityNote: () => null,
+  },
+  {
+    id: "u5", phase: "Gewerbe & Steuern", color: "#a78bfa",
+    title: "Gewerbeanmeldung",
+    description: "Das kurzfristige Vermieten an Gäste gegen Entgelt gilt als Gewerbebetrieb und muss beim Gewerbeamt (Ordnungsamt) deiner Stadt angemeldet werden. Die Anmeldung kostet meist 20–65 € und dauert wenige Tage.",
+    warning: "Ohne Gewerbeanmeldung bist du ordnungswidrig tätig.",
+    checklist: ["Gewerbe beim Gewerbeamt / Ordnungsamt angemeldet", "Gewerbeschein erhalten", "Finanzamt automatisch informiert (erfolgt i.d.R. durch Gewerbeamt)"],
+    cityNote: () => null,
+  },
+  {
+    id: "u6", phase: "Gewerbe & Steuern", color: "#a78bfa",
+    title: "Steuerliche Registrierung",
+    description: "Als Beherbergungsbetrieb bist du umsatzsteuerpflichtig: 7 % auf Übernachtungsleistungen. Einnahmen müssen in der Einkommensteuererklärung angegeben werden. Ab ca. 24.500 € Gewinn fällt Gewerbesteuer an.",
+    warning: "Viele unterschätzen die Steuerpflicht. Steuerberater frühzeitig einschalten.",
+    checklist: ["Fragebogen zur steuerlichen Erfassung beim Finanzamt ausgefüllt", "Umsatzsteuer-ID beantragt", "Steuerberater konsultiert", "Buchhaltungssystem eingerichtet"],
+    cityNote: (c) => c?.cityTax && c.cityTax !== "–" ? `City Tax / Übernachtungssteuer: ${c.cityTax} auf den Übernachtungspreis – zusätzlich abzuführen.` : null,
+  },
+  {
+    id: "u7", phase: "Plattform", color: "#34d399",
+    title: "Städtische Registrierungsnummer",
+    description: "Immer mehr deutsche Städte verlangen eine offizielle Registrierungsnummer für Kurzzeitvermietungen. Airbnb ist verpflichtet, diese im Inserat anzuzeigen – ohne Nummer wird das Listing in betroffenen Städten deaktiviert.",
+    warning: "Ohne Registrierungsnummer kann Airbnb dein Inserat jederzeit sperren.",
+    checklist: ["Geprüft ob Registrierungspflicht in deiner Stadt besteht", "Antrag auf Registrierungsnummer gestellt", "Registrierungsnummer erhalten"],
+    cityNote: (c) => c ? (c.registrierung === true ? `Registrierungspflicht: JA — Behörde: ${c.behoerde}` : c.registrierung === false ? "Aktuell keine stadtweite Registrierungspflicht – lokale Regelungen trotzdem prüfen." : `Behörde: ${c.behoerde} – Status lokal prüfen.`) : null,
+  },
+  {
+    id: "u8", phase: "Launch", color: "#4ade80",
+    title: "Airbnb-Listing erstellen",
+    description: "Erst wenn alle Genehmigungen vorliegen, erstellst du das Listing. Professionelle Fotos und eine klare Beschreibung sind entscheidend für den Start. Beginne mit wettbewerbsfähigen Preisen und erhöhe sie nach ersten Bewertungen.",
+    warning: "Kein Listing ohne vollständige Genehmigungen – Airbnb prüft in manchen Städten aktiv.",
+    checklist: ["Professionelle Fotos gemacht", "Listing-Text verfasst (Deutsch + Englisch)", "Registrierungsnummer eingetragen (falls erforderlich)", "Preisstrategie und Mindestaufenthalt definiert", "Erste Buchung freigeschaltet"],
+    cityNote: () => null,
+  },
+  {
+    id: "u9", phase: "Betrieb", color: "#94a3b8",
+    title: "Meldeschein-Pflicht",
+    description: "Als gewerblicher Beherbergungsbetrieb bist du nach dem Bundesmeldegesetz verpflichtet, Gäste zu erfassen. Bei Aufenthalten unter 3 Monaten genügt ein vereinfachter Meldeschein, den Gäste beim Check-in unterschreiben.",
+    warning: "Fehlende Meldescheine können bei Kontrollen zu Bußgeldern führen.",
+    checklist: ["Meldeschein-Vorlage beschafft (Gemeinde oder standardisierter Download)", "Check-in-Prozess für Gäste definiert", "Archivierungsprozess für Meldescheine eingerichtet"],
+    cityNote: () => null,
+  },
+];
+
+function TabUmnutzung({ p, set }) {
+  const [expanded, setExpanded] = useState(null);
+  const u = p.umnutzung || { city: "", steps: {} };
+  const setU = (next) => set({ ...p, umnutzung: next });
+  const city = CITY_INFOS[u.city] || null;
+
+  const getStep = (id, len) => u.steps[id] || { status: "offen", notes: "", checklist: Array(len).fill(false) };
+  const setStep = (id, val) => setU({ ...u, steps: { ...u.steps, [id]: val } });
+
+  const totalItems = UMNUTZUNG_STEPS.reduce((s, st) => s + st.checklist.length, 0);
+  const doneItems  = UMNUTZUNG_STEPS.reduce((s, st) => s + getStep(st.id, st.checklist.length).checklist.filter(Boolean).length, 0);
+  const progress   = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+
+  const statusColor = { offen: "#475569", aktiv: "#f59e0b", erledigt: "#4ade80" };
+  const statusLabel = { offen: "Offen", aktiv: "In Bearbeitung", erledigt: "Erledigt" };
+
+  return (
+    <div>
+      <SectionTitle icon="🏛️" title="Umnutzungs-Guideline" sub="Büro → Beherbergung · Schritt-für-Schritt-Leitfaden für Deutschland" />
+
+      <Select label="Deine Stadt" value={u.city} onChange={(v) => setU({ ...u, city: v })}
+        options={[{ value: "", label: "Stadt wählen…" }, ...Object.entries(CITY_INFOS).map(([k, v]) => ({ value: k, label: v.name }))]} />
+
+      <div style={{ background: "#1e293b", borderRadius: 10, padding: "14px 18px", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase" }}>Gesamtfortschritt</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80" }}>{progress} %</span>
+        </div>
+        <div style={{ height: 6, background: "#0f172a", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #4ade80, #22d3ee)", borderRadius: 3, transition: "width 0.4s ease" }} />
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{doneItems} von {totalItems} Punkten abgehakt</div>
+      </div>
+
+      {UMNUTZUNG_STEPS.map((step, idx) => {
+        const st = getStep(step.id, step.checklist.length);
+        const isOpen = expanded === step.id;
+        const doneCl = st.checklist.filter(Boolean).length;
+        const allDone = doneCl === step.checklist.length;
+        const cityNote = step.cityNote(city);
+
+        return (
+          <div key={step.id} style={{ background: "#1e293b", borderRadius: 10, marginBottom: 10, border: `1px solid ${isOpen ? step.color + "44" : "#334155"}`, overflow: "hidden", transition: "border 0.2s" }}>
+            <div onClick={() => setExpanded(isOpen ? null : step.id)}
+              style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: allDone ? "#16a34a22" : "#0f172a", border: `2px solid ${allDone ? "#4ade80" : step.color}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: allDone ? "#4ade80" : step.color }}>
+                {allDone ? "✓" : idx + 1}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: step.color, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 2 }}>{step.phase}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9" }}>{step.title}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: statusColor[st.status], fontWeight: 700 }}>{statusLabel[st.status]}</span>
+                <span style={{ fontSize: 11, color: "#475569" }}>{doneCl}/{step.checklist.length}</span>
+                <span style={{ color: "#475569", fontSize: 10 }}>{isOpen ? "▲" : "▼"}</span>
+              </div>
+            </div>
+
+            {isOpen && (
+              <div style={{ padding: "0 18px 18px", borderTop: "1px solid #0f172a" }}>
+                <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.7, margin: "14px 0 12px" }}>{step.description}</p>
+
+                {step.warning && (
+                  <div style={{ background: "#1c0505", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#fca5a5" }}>
+                    ⚠️ {step.warning}
+                  </div>
+                )}
+
+                {cityNote && (
+                  <div style={{ background: "#0c1a2e", border: `1px solid ${step.color}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#93c5fd" }}>
+                    🏙️ {cityNote}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 14 }}>
+                  {step.checklist.map((item, i) => (
+                    <label key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={st.checklist[i] || false}
+                        onChange={e => {
+                          const cl = [...st.checklist];
+                          cl[i] = e.target.checked;
+                          setStep(step.id, { ...st, checklist: cl, status: cl.every(Boolean) ? "erledigt" : cl.some(Boolean) ? "aktiv" : "offen" });
+                        }}
+                        style={{ marginTop: 3, accentColor: "#4ade80", flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: st.checklist[i] ? "#475569" : "#cbd5e1", textDecoration: st.checklist[i] ? "line-through" : "none", lineHeight: 1.5 }}>{item}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Notizen</label>
+                <textarea value={st.notes} rows={2}
+                  onChange={e => setStep(step.id, { ...st, notes: e.target.value })}
+                  placeholder="Eigene Notizen zu diesem Schritt…"
+                  style={{ width: "100%", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "9px 12px", color: "#f1f5f9", fontSize: 13, boxSizing: "border-box", fontFamily: "'DM Mono', monospace", outline: "none", resize: "vertical", lineHeight: 1.5 }} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const TABS = [
   { id: "stammdaten", label: "Objekt",      icon: "🏢" },
   { id: "kosten",     label: "Kosten",      icon: "💶" },
   { id: "einnahmen",  label: "Einnahmen",   icon: "📈" },
   { id: "auswertung", label: "Auswertung",  icon: "📊" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
+  { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
 ];
 
 export default function App() {
@@ -817,6 +1013,7 @@ export default function App() {
           {tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
           {tab === "auswertung" && <TabAuswertung p={current} />}
           {tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
+          {tab === "umnutzung" && <TabUmnutzung p={current} set={setCurrent} />}
         </div>
       </div>
     </div>
