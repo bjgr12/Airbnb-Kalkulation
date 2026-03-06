@@ -712,9 +712,9 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await window.storage.get("prop-analyzer-v3");
-        if (res?.value) {
-          const data = JSON.parse(res.value);
+        const raw = localStorage.getItem("prop-analyzer-v3");
+        if (raw) {
+          const data = JSON.parse(raw);
           setProperties(data);
           if (data.length > 0) { setActiveId(data[0].id); setCurrent(data[0]); }
         }
@@ -724,7 +724,7 @@ export default function App() {
   }, []);
 
   const persist = useCallback(async (list) => {
-    try { await window.storage.set("prop-analyzer-v3", JSON.stringify(list)); } catch {}
+    try { localStorage.setItem("prop-analyzer-v3", JSON.stringify(list)); } catch {}
   }, []);
 
   const handleSave = async () => {
