@@ -777,6 +777,12 @@ function MilestoneCard({ milestone, phaseColor, onUpdate, onDelete }) {
       {/* Expanded detail */}
       {open && (
         <div style={{ padding: 14, borderTop: "1px solid #f1f5f9" }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, display: "block", marginBottom: 4 }}>BEZEICHNUNG</label>
+            <input type="text" value={milestone.title}
+              onChange={e => onUpdate({ ...milestone, title: e.target.value })}
+              style={{ ...inputStyle, fontSize: 13, padding: "7px 10px" }} />
+          </div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, display: "block", marginBottom: 4 }}>FÄLLIGKEITSDATUM</label>
