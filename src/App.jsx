@@ -1484,8 +1484,11 @@ const TABS = [
   { id: "tracker",    label: "Tracker",     icon: "💰" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
   { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
-  { id: "portfolio",  label: "Portfolio",   icon: "🏦" },
-  { id: "karte",      label: "Karte",       icon: "🗺️" },
+];
+
+const GLOBAL_VIEWS = [
+  { id: "portfolio", label: "Portfolio", icon: "🏦" },
+  { id: "karte",     label: "Karte",     icon: "🗺️" },
 ];
 
 export default function App() {
@@ -1493,6 +1496,7 @@ export default function App() {
   const [activeId, setActiveId] = useState(null);
   const [current, setCurrent] = useState(newProperty());
   const [tab, setTab] = useState("stammdaten");
+  const [globalView, setGlobalView] = useState(null);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -1522,8 +1526,8 @@ export default function App() {
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleNew = () => { setCurrent(newProperty()); setActiveId(null); setTab("stammdaten"); };
-  const handleSelect = (p) => { setCurrent(p); setActiveId(p.id); setTab("stammdaten"); };
+  const handleNew = () => { setCurrent(newProperty()); setActiveId(null); setTab("stammdaten"); setGlobalView(null); };
+  const handleSelect = (p) => { setCurrent(p); setActiveId(p.id); setTab("stammdaten"); setGlobalView(null); };
   const handleDelete = async (id) => {
     const updated = properties.filter(p => p.id !== id);
     setProperties(updated); await persist(updated);
@@ -1548,14 +1552,26 @@ export default function App() {
           <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", letterSpacing: 2, marginBottom: 4 }}>PROPERTY</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#f1f5f9", fontWeight: 800 }}>Analyzer</div>
         </div>
+
+        {/* Global views */}
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #1e293b" }}>
+          {GLOBAL_VIEWS.map(v => (
+            <button key={v.id} onClick={() => setGlobalView(v.id)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: globalView === v.id ? "#1e293b" : "transparent", border: `1px solid ${globalView === v.id ? "#334155" : "transparent"}`, borderRadius: 8, padding: "8px 10px", color: globalView === v.id ? "#f1f5f9" : "#64748b", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", marginBottom: 4, transition: "all 0.15s", textAlign: "left" }}>
+              <span>{v.icon}</span> {v.label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ padding: 12, flex: 1, overflowY: "auto" }}>
           <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Objekte</div>
           {properties.length === 0 && <div style={{ fontSize: 11, color: "#334155", padding: "8px 0" }}>Noch keine Objekte.</div>}
           {properties.map(p => {
             const pb = projProgress(p);
+            const isActive = activeId === p.id && !globalView;
             return (
               <div key={p.id} onClick={() => handleSelect(p)}
-                style={{ borderRadius: 8, padding: "10px", marginBottom: 6, cursor: "pointer", background: activeId === p.id ? "#1e3a5f" : "transparent", border: `1px solid ${activeId === p.id ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
+                style={{ borderRadius: 8, padding: "10px", marginBottom: 6, cursor: "pointer", background: isActive ? "#1e3a5f" : "transparent", border: `1px solid ${isActive ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.meta.name || "Unbenannt"}</span>
                   {pb !== null && <span style={{ fontSize: 10, color: pb === 100 ? "#4ade80" : "#64748b", flexShrink: 0, marginLeft: 4 }}>{pb}%</span>}
@@ -1581,33 +1597,45 @@ export default function App() {
 
       {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#f1f5f9" }}>{current.meta.name || "Neues Objekt"}</span>
-            {current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
+        {globalView ? (
+          /* Global view header */
+          <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", padding: "12px 24px", display: "flex", alignItems: "center" }}>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#f1f5f9" }}>
+              {GLOBAL_VIEWS.find(v => v.id === globalView)?.icon} {GLOBAL_VIEWS.find(v => v.id === globalView)?.label}
+            </span>
           </div>
-          <button onClick={handleSave} style={{ background: saved ? "#16a34a" : "#1d4ed8", border: "none", borderRadius: 8, padding: "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s" }}>
-            {saved ? "✓ Gespeichert" : "💾 Speichern"}
-          </button>
-        </div>
-        <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", display: "flex", padding: "0 24px" }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ background: "none", border: "none", padding: "12px 16px", color: tab === t.id ? "#4ade80" : "#64748b", borderBottom: tab === t.id ? "2px solid #4ade80" : "2px solid transparent", cursor: "pointer", fontSize: 13, fontFamily: "'DM Mono', monospace", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }}>
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
+        ) : (
+          /* Property header + tabs */
+          <>
+            <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#f1f5f9" }}>{current.meta.name || "Neues Objekt"}</span>
+                {current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
+              </div>
+              <button onClick={handleSave} style={{ background: saved ? "#16a34a" : "#1d4ed8", border: "none", borderRadius: 8, padding: "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s" }}>
+                {saved ? "✓ Gespeichert" : "💾 Speichern"}
+              </button>
+            </div>
+            <div style={{ background: "#020617", borderBottom: "1px solid #1e293b", display: "flex", padding: "0 24px" }}>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  style={{ background: "none", border: "none", padding: "12px 16px", color: tab === t.id ? "#4ade80" : "#64748b", borderBottom: tab === t.id ? "2px solid #4ade80" : "2px solid transparent", cursor: "pointer", fontSize: 13, fontFamily: "'DM Mono', monospace", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
-          {tab === "stammdaten" && <TabStammdaten p={current} set={setCurrent} />}
-          {tab === "kosten"     && <TabKosten p={current} set={setCurrent} />}
-          {tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
-          {tab === "auswertung" && <TabAuswertung p={current} />}
-          {tab === "tracker"    && <TabTracker p={current} set={setCurrent} />}
-          {tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
-          {tab === "umnutzung"  && <TabUmnutzung p={current} set={setCurrent} />}
-          {tab === "portfolio"  && <TabPortfolio properties={properties} />}
-          {tab === "karte"      && <TabKarte properties={properties} />}
+          {globalView === "portfolio" && <TabPortfolio properties={properties} />}
+          {globalView === "karte"     && <TabKarte properties={properties} />}
+          {!globalView && tab === "stammdaten" && <TabStammdaten p={current} set={setCurrent} />}
+          {!globalView && tab === "kosten"     && <TabKosten p={current} set={setCurrent} />}
+          {!globalView && tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
+          {!globalView && tab === "auswertung" && <TabAuswertung p={current} />}
+          {!globalView && tab === "tracker"    && <TabTracker p={current} set={setCurrent} />}
+          {!globalView && tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
+          {!globalView && tab === "umnutzung"  && <TabUmnutzung p={current} set={setCurrent} />}
         </div>
       </div>
     </div>
