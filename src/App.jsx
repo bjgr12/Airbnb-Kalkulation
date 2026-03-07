@@ -221,6 +221,7 @@ const newProperty = () => ({
   photos: [],
   tracker: { entries: [] },
   log: { entries: [] },
+  konzept: { betreiberName: "", betreiberEmail: "", betreiberTelefon: "", betreiberAdresse: "" },
   status: "watchlist",
 });
 
@@ -249,6 +250,190 @@ function calcLongterm(p) {
   const fixedCosts = p.costs.coldRent + p.costs.nk;
   const profit = monthlyRent - fixedCosts;
   return { monthlyRent, fixedCosts, profit };
+}
+
+// ─── Konzept HTML Export ──────────────────────────────────────────────────────
+const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function konzeptHtml(p) {
+  const k = p.konzept || {};
+  const m = p.meta || {};
+  const c = p.costs || {};
+  const s = p.setup || {};
+  const sc = calcScenario(p, p.airbnb?.realisticNights ?? 18);
+
+  const totalSetup = (s.furnitureCost || 0) + (s.renovationCost || 0) + (s.otherSetup || 0);
+
+  const typeLabel = { studio: "Studio / Einzimmer", apartment: "Apartment", loft: "Loft", room: "Zimmer", office: "Büro / Gewerbefläche" };
+  const condLabel = { "sehr gut": "Sehr gut", "gut": "Gut", "renovierungsbedürftig": "Renovierungsbedürftig", "saniert": "Saniert" };
+
+  const stepsSubset = [
+    { id: "u1", label: "Vermieter-Genehmigung" },
+    { id: "u4", label: "Brandschutz" },
+    { id: "u5", label: "Gewerbeanmeldung" },
+    { id: "u6", label: "Steuerliche Registrierung" },
+    { id: "u7", label: "Registrierungsnummer (Stadt)" },
+    { id: "u9", label: "Meldeschein-Pflicht" },
+  ];
+  const stepsHtml = stepsSubset.map(st => {
+    const status = (p.umnutzung?.steps?.[st.id]?.status) || "offen";
+    const statusColor = status === "erledigt" ? "#16a34a" : status === "aktiv" ? "#ca8a04" : "#6b7280";
+    const statusText  = status === "erledigt" ? "Erledigt" : status === "aktiv" ? "In Bearbeitung" : "Geplant";
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${esc(st.label)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:${statusColor};font-weight:600;">${statusText}</td>
+    </tr>`;
+  }).join("");
+
+  const date = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Konzept – ${esc(m.name || "Objekt")}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:#1f2937;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:780px;margin:0 auto;padding:48px 40px}
+  h1{font-family:'Playfair Display',serif;font-size:32px;color:#111827;margin-bottom:6px}
+  h2{font-family:'Playfair Display',serif;font-size:20px;color:#111827;margin:32px 0 12px}
+  .subtitle{color:#6b7280;font-size:15px;margin-bottom:6px}
+  .cover{border-bottom:3px solid #111827;padding-bottom:28px;margin-bottom:12px}
+  .cover-meta{font-size:13px;color:#6b7280;margin-top:4px}
+  .section{background:#f9fafb;border-radius:10px;padding:20px 24px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
+  .kv{padding:6px 0;border-bottom:1px solid #e5e7eb}
+  .kv:last-child{border-bottom:none}
+  .kv .label{font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:2px}
+  .kv .value{font-size:14px;font-weight:600;color:#111827}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th{background:#f3f4f6;text-align:left;padding:8px 12px;font-size:12px;font-weight:700;color:#6b7280;letter-spacing:1px;text-transform:uppercase}
+  .highlight{background:#f0fdf4;border-radius:10px;padding:18px 24px;margin-bottom:16px;border:1px solid #bbf7d0}
+  .highlight .value{font-size:28px;font-weight:800;color:#16a34a}
+  .note{font-size:12px;color:#9ca3af;margin-top:8px;font-style:italic}
+  .signature{margin-top:48px;padding-top:24px;border-top:1px solid #e5e7eb}
+  .sig-line{border-bottom:1px solid #374151;width:280px;height:48px;margin-bottom:6px}
+  p{margin-bottom:8px}
+  @media print{
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{padding:24px}
+    h2{margin:20px 0 10px}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Cover -->
+  <div class="cover">
+    <div class="subtitle">Konzept zur Kurzzeitvermietung via Airbnb</div>
+    <h1>${esc(m.name || "Objekt")}</h1>
+    <div class="cover-meta">${esc([m.address, m.zip && m.city ? m.zip + " " + m.city : m.city].filter(Boolean).join(", ") || "Adresse nicht angegeben")}</div>
+    <div class="cover-meta" style="margin-top:8px">Erstellt am ${date}</div>
+  </div>
+
+  <!-- Betreiber -->
+  ${k.betreiberName ? `<h2>Betreiber</h2>
+  <div class="section">
+    <div class="grid">
+      <div class="kv"><div class="label">Name</div><div class="value">${esc(k.betreiberName)}</div></div>
+      ${k.betreiberAdresse ? `<div class="kv"><div class="label">Adresse</div><div class="value">${esc(k.betreiberAdresse)}</div></div>` : ""}
+      ${k.betreiberEmail ? `<div class="kv"><div class="label">E-Mail</div><div class="value">${esc(k.betreiberEmail)}</div></div>` : ""}
+      ${k.betreiberTelefon ? `<div class="kv"><div class="label">Telefon</div><div class="value">${esc(k.betreiberTelefon)}</div></div>` : ""}
+    </div>
+  </div>` : ""}
+
+  <!-- Das Objekt -->
+  <h2>Das Objekt</h2>
+  <div class="section">
+    <div class="grid">
+      <div class="kv"><div class="label">Typ</div><div class="value">${esc(typeLabel[m.type] || m.type || "—")}</div></div>
+      <div class="kv"><div class="label">Wohnfläche</div><div class="value">${esc(m.sqm || "—")} m²</div></div>
+      <div class="kv"><div class="label">Zimmer</div><div class="value">${esc(m.rooms || "—")}</div></div>
+      <div class="kv"><div class="label">Stockwerk</div><div class="value">${esc(m.floor != null ? m.floor + ". OG" : "—")}</div></div>
+      <div class="kv"><div class="label">Baujahr</div><div class="value">${esc(m.builtYear || "—")}</div></div>
+      <div class="kv"><div class="label">Zustand</div><div class="value">${esc(condLabel[m.condition] || m.condition || "—")}</div></div>
+    </div>
+  </div>
+
+  <!-- Ihr Nutzen als Eigentümer -->
+  <h2>Ihr Nutzen als Eigentümer</h2>
+  <div class="section">
+    <div class="grid">
+      <div class="kv"><div class="label">Kaltmiete / Monat</div><div class="value">${esc(eur(c.coldRent))}</div></div>
+      <div class="kv"><div class="label">Nebenkosten / Monat</div><div class="value">${esc(eur(c.nk))}</div></div>
+      <div class="kv"><div class="label">Kaution</div><div class="value">${esc(eur(c.deposit))}</div></div>
+      <div class="kv"><div class="label">Gewünschte Mietdauer</div><div class="value">${esc(c.leaseDuration || "—")} Monate</div></div>
+    </div>
+    <p style="margin-top:14px;color:#374151">Als Mieter sorge ich für einen stabilen, pünktlichen Mieteingang, übernehme sämtliche Instandhaltung der Einrichtung auf eigene Kosten und hinterlasse die Wohnung bei Auszug im vertragsgemäßen Zustand.</p>
+  </div>
+
+  <!-- Betreiber-Investment -->
+  <h2>Betreiber-Investment</h2>
+  <div class="section">
+    <div class="grid">
+      <div class="kv"><div class="label">Einrichtung</div><div class="value">${esc(eur(s.furnitureCost))}</div></div>
+      <div class="kv"><div class="label">Renovierung</div><div class="value">${esc(eur(s.renovationCost))}</div></div>
+      ${s.otherSetup ? `<div class="kv"><div class="label">Sonstiges</div><div class="value">${esc(eur(s.otherSetup))}</div></div>` : ""}
+      <div class="kv"><div class="label">Gesamtinvestition</div><div class="value" style="color:#2563eb">${esc(eur(totalSetup))}</div></div>
+    </div>
+    <p style="margin-top:14px;color:#374151">Dieses Eigeninvestment zeigt mein Commitment — ich trage das volle wirtschaftliche Risiko und habe ein starkes Interesse an einer langfristigen, pfleglichen Nutzung der Immobilie.</p>
+  </div>
+
+  <!-- Rechtliche Absicherung -->
+  <h2>Rechtliche Absicherung</h2>
+  <div class="section">
+    <p style="color:#374151;margin-bottom:10px">Folgende rechtliche Schritte werden vor Betriebsaufnahme vollständig abgeschlossen:</p>
+    <table>
+      <thead><tr><th>Schritt</th><th>Status</th></tr></thead>
+      <tbody>${stepsHtml}</tbody>
+    </table>
+  </div>
+
+  <!-- Wirtschaftlichkeit -->
+  <h2>Wirtschaftlichkeit</h2>
+  <div class="highlight">
+    <div style="font-size:12px;font-weight:700;color:#15803d;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px">Realistisches Szenario — ${esc(p.airbnb?.realisticNights ?? 18)} Nächte / Monat</div>
+    <div class="value">${esc(eur(sc.profit))} <span style="font-size:16px;font-weight:500;color:#374151">Monatsgewinn</span></div>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Auslastung</div><div style="font-weight:700;font-size:16px">${esc(pct(sc.occupancy))}</div></div>
+      <div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Einnahmen</div><div style="font-weight:700;font-size:16px">${esc(eur(sc.revenue))}</div></div>
+      <div><div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Gesamtkosten</div><div style="font-weight:700;font-size:16px">${esc(eur(sc.totalCosts))}</div></div>
+    </div>
+  </div>
+
+  <!-- Betriebskonzept -->
+  <h2>Betriebskonzept</h2>
+  <div class="section">
+    <p><strong>Reinigung:</strong> Professioneller Reinigungsservice nach jedem Gast — die Wohnung wird stets in einwandfreiem Zustand übergeben.</p>
+    <p><strong>Zugangssystem:</strong> Digitales Smart Lock (kontaktloser Check-in) — kein Schlüsseltausch, maximale Sicherheit.</p>
+    <p><strong>Gästevetting:</strong> Ausschließlich verifizierte Airbnb-Gäste mit Bewertungen; Partyverbote und Hausregeln sind klar kommuniziert.</p>
+    <p><strong>Versicherung:</strong> Airbnb AirCover für Hosts sowie ergänzende Haftpflichtversicherung für Kurzzeitvermietung.</p>
+    <p><strong>Ansprechbarkeit:</strong> 24/7 erreichbar für Gäste und Eigentümer; schnelle Reaktion bei Schäden oder Problemen.</p>
+    <p class="note">Fotos der Wohnung werden separat beigefügt.</p>
+  </div>
+
+  <!-- Unterschrift -->
+  <div class="signature">
+    <div style="margin-bottom:28px;color:#6b7280;font-size:13px">Ort, Datum: ___________________________</div>
+    <div class="sig-line"></div>
+    <div style="font-size:13px;color:#374151;font-weight:600">${esc(k.betreiberName || "Unterschrift Betreiber")}</div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
+function openKonzept(p) {
+  const win = window.open("", "_blank");
+  if (!win) { alert("Pop-up-Blocker aktiv — bitte kurz deaktivieren und erneut versuchen."); return; }
+  win.document.write(konzeptHtml(p));
+  win.document.close();
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -1163,6 +1348,60 @@ const LOG_CATEGORIES = [
   { id: "sonstiges",  label: "Sonstiges",   color: "#a78bfa" },
 ];
 
+function TabKonzept({ p, set }) {
+  const k = p.konzept || {};
+  const setK = (key) => (val) => set(prev => ({ ...prev, konzept: { ...(prev.konzept || {}), [key]: val } }));
+  const sc = calcScenario(p, p.airbnb?.realisticNights ?? 18);
+  const totalSetup = (p.setup?.furnitureCost || 0) + (p.setup?.renovationCost || 0) + (p.setup?.otherSetup || 0);
+
+  return (
+    <div>
+      <SectionTitle icon="📄" title="Konzept für Eigentümer" sub="Professionelles Pitch-Dokument zum Ausdrucken oder als PDF speichern" />
+
+      {/* Betreiber-Kontaktdaten */}
+      <div style={{ background: "#0a1628", borderRadius: 14, padding: 20, border: "1px solid #1e293b", marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Ihre Kontaktdaten (Betreiber)</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Input label="Name / Firma" value={k.betreiberName || ""} onChange={setK("betreiberName")} type="text" half />
+          <Input label="E-Mail" value={k.betreiberEmail || ""} onChange={setK("betreiberEmail")} type="text" half />
+          <Input label="Telefon" value={k.betreiberTelefon || ""} onChange={setK("betreiberTelefon")} type="text" half />
+          <Input label="Adresse (Straße, PLZ Ort)" value={k.betreiberAdresse || ""} onChange={setK("betreiberAdresse")} type="text" half />
+        </div>
+      </div>
+
+      {/* Preview summary */}
+      <div style={{ background: "#0a1628", borderRadius: 14, padding: 20, border: "1px solid #1e293b", marginBottom: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Vorschau — Dokumentinhalt</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
+          {[
+            { label: "Objekt", value: p.meta?.name || "—" },
+            { label: "Adresse", value: [p.meta?.address, p.meta?.city].filter(Boolean).join(", ") || "—" },
+            { label: "Kaltmiete / Monat", value: eur(p.costs?.coldRent) },
+            { label: "Kaution", value: eur(p.costs?.deposit) },
+            { label: "Betreiber-Investment", value: eur(totalSetup) },
+            { label: "Realist. Gewinn / Monat", value: eur(sc.profit) },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ padding: "8px 0", borderBottom: "1px solid #1e293b" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Export button */}
+      <button
+        onClick={() => openKonzept(p)}
+        style={{ width: "100%", background: "linear-gradient(135deg, #1d4ed8, #2563eb)", border: "none", borderRadius: 12, padding: "16px 24px", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Mono', monospace", letterSpacing: 0.5 }}>
+        📄 Konzept öffnen → Als PDF speichern
+      </button>
+      <div style={{ textAlign: "center", fontSize: 12, color: "#475569", marginTop: 10 }}>
+        Dokument öffnet sich in neuem Tab → Drucken (Cmd+P) → "Als PDF speichern"
+      </div>
+    </div>
+  );
+}
+
 function TabLog({ p, set }) {
   const [text, setText] = useState("");
   const [category, setCategory] = useState("allgemein");
@@ -1625,6 +1864,7 @@ const TABS = [
   { id: "log",        label: "Notizen",     icon: "📝" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
   { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
+  { id: "konzept",    label: "Konzept",     icon: "📄" },
 ];
 
 const GLOBAL_VIEWS = [
@@ -1792,6 +2032,7 @@ export default function App() {
           {!globalView && tab === "log"        && <TabLog p={current} set={setCurrent} />}
           {!globalView && tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
           {!globalView && tab === "umnutzung"  && <TabUmnutzung p={current} set={setCurrent} />}
+          {!globalView && tab === "konzept"    && <TabKonzept p={current} set={setCurrent} />}
         </div>
       </div>
     </div>
