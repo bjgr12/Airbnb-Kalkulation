@@ -78,6 +78,29 @@ async function photoDbDel(id) {
   } catch {}
 }
 
+// ─── Export / Import ──────────────────────────────────────────────────────────
+function exportPropertyJson(p) {
+  const blob = new Blob([JSON.stringify({ ...p, photos: [] }, null, 2)], { type: "application/json" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${p.meta.name || "einheit"}-${p.id}.json` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function exportPropertyCsv(p) {
+  const sc = calcScenario(p, p.airbnb?.realisticNights ?? 18);
+  const setup = (p.setup?.furnitureCost || 0) + (p.setup?.renovationCost || 0) + (p.setup?.otherSetup || 0);
+  const rows = [
+    ["Feld", "Wert"],
+    ["Name", p.meta?.name || ""], ["Adresse", p.meta?.address || ""], ["PLZ", p.meta?.zip || ""], ["Stadt", p.meta?.city || ""],
+    ["Typ", p.meta?.type || ""], ["Fläche (m²)", p.meta?.sqm || ""], ["Zimmer", p.meta?.rooms || ""],
+    ["Kaltmiete (€)", p.costs?.coldRent || 0], ["Nebenkosten (€)", p.costs?.nk || 0], ["Kaution (€)", p.costs?.deposit || 0],
+    ["Setup-Kosten (€)", setup], ["Nächte realistisch", p.airbnb?.realisticNights || 0], ["Nachpreis (€)", p.airbnb?.nightlyRate || 0],
+    ["Einnahmen realist. (€)", sc.revenue], ["Gesamtkosten realist. (€)", sc.totalCosts], ["Gewinn realist. (€)", sc.profit], ["ROI realist. (%)", (sc.roi ?? 0).toFixed(1)],
+  ];
+  const csv = "\uFEFF" + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })), download: `${p.meta?.name || "einheit"}-${p.id}.csv` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
 // ─── Lageanalyse ──────────────────────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -2290,6 +2313,21 @@ export default function App() {
     if (activeId === id) handleNew();
   };
 
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.meta || !data.costs) { alert("Ungültige Datei – kein gültiges Einheiten-JSON."); return; }
+      const imported = { ...data, id: uid() };
+      const updated = [...properties, imported];
+      setProperties(updated); await persist(updated);
+      handleSelect(imported);
+    } catch { alert("Fehler beim Lesen der Datei."); }
+    e.target.value = "";
+  };
+
   const projProgress = (p) => {
     if (!p.project?.phases) return null;
     const all = p.project.phases.flatMap(ph => ph.milestones);
@@ -2358,10 +2396,14 @@ export default function App() {
             );
           })}
         </div>
-        <div style={{ padding: 12, borderTop: "1px solid #f1f5f9" }}>
+        <div style={{ padding: 12, borderTop: "1px solid #f1f5f9", display: "flex", flexDirection: "column", gap: 6 }}>
           <button onClick={handleNew} style={{ width: "100%", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 0", color: "#1e293b", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
             + Neues Objekt
           </button>
+          <label style={{ width: "100%", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 0", color: "#475569", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", textAlign: "center", display: "block", boxSizing: "border-box" }}>
+            ↑ JSON importieren
+            <input type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
+          </label>
         </div>
       </div>
 
@@ -2382,9 +2424,19 @@ export default function App() {
                 <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#0f172a" }}>{current.meta.name || "Neues Objekt"}</span>
                 {current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
               </div>
-              <button onClick={handleSave} style={{ background: saved ? "#15803d" : "#2563eb", border: "none", borderRadius: 8, padding: "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s" }}>
-                {saved ? "✓ Gespeichert" : "💾 Speichern"}
-              </button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button onClick={() => exportPropertyJson(current)} title="Als JSON exportieren"
+                  style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", color: "#475569", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+                  ↓ JSON
+                </button>
+                <button onClick={() => exportPropertyCsv(current)} title="Als CSV exportieren"
+                  style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", color: "#475569", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+                  ↓ CSV
+                </button>
+                <button onClick={handleSave} style={{ background: saved ? "#15803d" : "#2563eb", border: "none", borderRadius: 8, padding: "8px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", transition: "background 0.3s" }}>
+                  {saved ? "✓ Gespeichert" : "💾 Speichern"}
+                </button>
+              </div>
             </div>
             <div style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", display: "flex", padding: "0 24px" }}>
               {TABS.map(t => (
