@@ -78,6 +78,80 @@ async function photoDbDel(id) {
   } catch {}
 }
 
+// ─── Lageanalyse ──────────────────────────────────────────────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function analyzeLocation(lat, lng, city) {
+  const badges = [];
+
+  try {
+    const query = `[out:json][timeout:20];(
+node["aeroway"="aerodrome"](around:30000,${lat},${lng});
+way["aeroway"="aerodrome"](around:30000,${lat},${lng});
+node["railway"="station"](around:3000,${lat},${lng});
+node["railway"="halt"](around:3000,${lat},${lng});
+node["station"="subway"](around:1000,${lat},${lng});
+node["highway"="motorway_junction"](around:5000,${lat},${lng});
+);out center;`;
+    const res = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: query });
+    const data = await res.json();
+    const nodes = data.elements || [];
+
+    const nearest = (list, getLatLng) => list.reduce((min, n) => {
+      const [a, b] = getLatLng(n);
+      const d = haversine(lat, lng, a, b);
+      return d < min.d ? { d, name: n.tags?.name || "" } : min;
+    }, { d: Infinity, name: "" });
+
+    const airports = nodes.filter(n => n.tags?.aeroway === "aerodrome");
+    if (airports.length > 0) {
+      const nr = nearest(airports, n => n.type === "way" ? [n.center.lat, n.center.lon] : [n.lat, n.lon]);
+      if (nr.d < 8)  badges.push({ icon: "✈️", label: "Flughafen direkt",  sub: `${nr.name} · ${nr.d.toFixed(1)} km`,            color: "#2563eb" });
+      else if (nr.d < 20) badges.push({ icon: "✈️", label: "Flughafennähe", sub: `${nr.name} · ${nr.d.toFixed(1)} km`,            color: "#2563eb" });
+    }
+
+    const stations = nodes.filter(n => n.tags?.railway === "station" || n.tags?.railway === "halt");
+    if (stations.length > 0) {
+      const nr = nearest(stations, n => [n.lat, n.lon]);
+      if (nr.d < 0.6) badges.push({ icon: "🚆", label: "Bahnhof fußläufig",  sub: `${nr.name} · ${Math.round(nr.d*1000)} m`,     color: "#7c3aed" });
+      else if (nr.d < 2) badges.push({ icon: "🚆", label: "Bahnhof erreichbar", sub: `${nr.name} · ${nr.d.toFixed(1)} km`,        color: "#7c3aed" });
+    }
+
+    const subway = nodes.filter(n => n.tags?.station === "subway");
+    if (subway.length > 0) {
+      const nr = nearest(subway, n => [n.lat, n.lon]);
+      if (nr.d < 0.5) badges.push({ icon: "🚇", label: "U-Bahn fußläufig", sub: `${nr.name} · ${Math.round(nr.d*1000)} m`,       color: "#059669" });
+    }
+
+    const motorway = nodes.filter(n => n.tags?.highway === "motorway_junction");
+    if (motorway.length > 0) {
+      const nr = nearest(motorway, n => [n.lat, n.lon]);
+      if (nr.d < 5) badges.push({ icon: "🛣️", label: "Autobahnanbindung", sub: `Auffahrt · ${nr.d.toFixed(1)} km`,                color: "#ea580c" });
+    }
+  } catch {}
+
+  try {
+    if (city) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", Deutschland")}&limit=1`, { headers: { "Accept-Language": "de" } });
+      const data = await res.json();
+      if (data.length > 0) {
+        const d = haversine(lat, lng, parseFloat(data[0].lat), parseFloat(data[0].lon));
+        if (d < 3)      badges.push({ icon: "🏙️", label: "Innenstadtlage",  sub: `${d.toFixed(1)} km zum Zentrum`,               color: "#16a34a" });
+        else if (d < 8) badges.push({ icon: "🏙️", label: "Innenstadtnähe", sub: `${d.toFixed(1)} km zum Zentrum`,                color: "#16a34a" });
+        else            badges.push({ icon: "📍",  label: "Stadtrandlage",  sub: `${d.toFixed(1)} km zum Zentrum`,                color: "#64748b" });
+      }
+    }
+  } catch {}
+
+  return badges;
+}
+
 // ─── Default Project Phases ───────────────────────────────────────────────────
 const DEFAULT_PHASES = () => [
   {
@@ -981,6 +1055,15 @@ function TabStammdaten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const [geocoding, setGeocoding] = useState(false);
   const [geoError, setGeoError] = useState(false);
+  const [lageAnalyse, setLageAnalyse] = useState(null);
+  const [lageLoading, setLageLoading] = useState(false);
+
+  const handleAnalyze = async () => {
+    setLageLoading(true);
+    const badges = await analyzeLocation(p.meta.lat, p.meta.lng, p.meta.city);
+    setLageAnalyse(badges);
+    setLageLoading(false);
+  };
 
   const handleGeocode = async () => {
     setGeocoding(true); setGeoError(false);
@@ -1049,14 +1132,42 @@ function TabStammdaten({ p, set }) {
       </div>
 
       {hasCoords && (
-        <div style={{ height: 280, borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
-          <MapContainer center={[p.meta.lat, p.meta.lng]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={true}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-            <Marker position={[p.meta.lat, p.meta.lng]}>
-              <Popup>{p.meta.name || p.meta.address}<br />{p.meta.zip} {p.meta.city}</Popup>
-            </Marker>
-          </MapContainer>
-        </div>
+        <>
+          <div style={{ height: 280, borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+            <MapContainer center={[p.meta.lat, p.meta.lng]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={true}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
+              <Marker position={[p.meta.lat, p.meta.lng]}>
+                <Popup>{p.meta.name || p.meta.address}<br />{p.meta.zip} {p.meta.city}</Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+
+          {/* Lageanalyse */}
+          <div style={{ background: "#ffffff", borderRadius: 12, border: "1px solid #f1f5f9", padding: 18, marginTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: lageAnalyse ? 14 : 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: 1.2, textTransform: "uppercase" }}>Lageanalyse</div>
+              <button onClick={handleAnalyze} disabled={lageLoading}
+                style={{ background: lageLoading ? "#f1f5f9" : "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 14px", color: lageLoading ? "#94a3b8" : "#475569", fontSize: 12, cursor: lageLoading ? "default" : "pointer", fontFamily: "'DM Mono', monospace" }}>
+                {lageLoading ? "Analysiere…" : lageAnalyse ? "↻ Neu analysieren" : "Analysieren"}
+              </button>
+            </div>
+            {lageAnalyse && (
+              lageAnalyse.length === 0
+                ? <div style={{ fontSize: 12, color: "#94a3b8" }}>Keine besonderen Lagevorteile im Umkreis gefunden.</div>
+                : <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {lageAnalyse.map((b, i) => (
+                      <div key={i} style={{ background: "#f8fafc", border: `1px solid ${b.color}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{b.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: b.color }}>{b.label}</div>
+                          <div style={{ fontSize: 11, color: "#64748b" }}>{b.sub}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+            )}
+          </div>
+        </>
       )}
 
       <div style={{ marginTop: 28 }}>
