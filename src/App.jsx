@@ -221,6 +221,7 @@ const newProperty = () => ({
   photos: [],
   tracker: { entries: [] },
   log: { entries: [] },
+  status: "watchlist",
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -675,8 +676,27 @@ function TabStammdaten({ p, set }) {
   const hasCoords = p.meta.lat && p.meta.lng;
   const canGeocode = p.meta.address && p.meta.city;
 
+  const isAktiv = p.status === "aktiv";
+  const toggleStatus = () => set(prev => ({ ...prev, status: prev.status === "aktiv" ? "watchlist" : "aktiv" }));
+
   return (
     <div>
+      {/* Status toggle */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: isAktiv ? "#052e16" : "#0a1628", borderRadius: 12, border: `1px solid ${isAktiv ? "#4ade8044" : "#334155"}`, marginBottom: 24 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isAktiv ? "#4ade80" : "#94a3b8" }}>
+            {isAktiv ? "✓ Im Betrieb" : "○ Watchlist"}
+          </div>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+            {isAktiv ? "Zählt zu Portfolio-Summen (Kosten, Gewinn, ROI)" : "Wird in Portfolio-Summen nicht berücksichtigt"}
+          </div>
+        </div>
+        <button onClick={toggleStatus}
+          style={{ background: isAktiv ? "#4ade8022" : "#1e293b", border: `1px solid ${isAktiv ? "#4ade80" : "#475569"}`, borderRadius: 20, padding: "7px 20px", color: isAktiv ? "#4ade80" : "#64748b", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace", fontWeight: 700, whiteSpace: "nowrap" }}>
+          {isAktiv ? "→ Watchlist" : "→ Ins Portfolio"}
+        </button>
+      </div>
+
       <SectionTitle icon="🏢" title="Objektdaten" sub="Basisdaten zur Immobilie" />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         <Input label="Objektname / Bezeichnung" value={p.meta.name} onChange={u("meta","name")} type="text" />
@@ -1441,7 +1461,7 @@ function TabPortfolio({ properties }) {
     );
   }
 
-  const propData = properties.map(p => {
+  const toData = (p) => {
     const real  = calcScenario(p, p.airbnb.realisticNights);
     const pess  = calcScenario(p, p.airbnb.pessimisticNights);
     const opt   = calcScenario(p, p.airbnb.optimisticNights);
@@ -1456,33 +1476,108 @@ function TabPortfolio({ properties }) {
     })();
     const startup = p.costs.deposit + p.setup.furnitureCost + p.setup.renovationCost + p.setup.otherSetup;
     return { p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup };
-  });
+  };
 
-  const totalPlannedProfit  = propData.reduce((s, d) => s + d.real.profit, 0);
-  const totalCapital        = propData.reduce((s, d) => s + d.startup, 0);
-  const avgROI              = propData.reduce((s, d) => s + d.real.roi, 0) / propData.length;
-  const propsWithActual     = propData.filter(d => d.hasActual);
+  const aktiv     = properties.filter(p => p.status === "aktiv").map(toData);
+  const watchlist = properties.filter(p => (p.status || "watchlist") === "watchlist").map(toData);
+
+  const totalPlannedProfit  = aktiv.reduce((s, d) => s + d.real.profit, 0);
+  const totalCapital        = aktiv.reduce((s, d) => s + d.startup, 0);
+  const avgROI              = aktiv.length > 0 ? aktiv.reduce((s, d) => s + d.real.roi, 0) / aktiv.length : 0;
+  const propsWithActual     = aktiv.filter(d => d.hasActual);
   const totalActualRev      = propsWithActual.reduce((s, d) => s + d.actualRev, 0);
   const totalActualExp      = propsWithActual.reduce((s, d) => s + d.actualExp, 0);
   const totalActualProfit   = totalActualRev - totalActualExp;
 
+  const PropertyCard = ({ p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup }) => {
+    const actualProfit = actualRev - actualExp;
+    return (
+      <div style={{ background: "#0a1628", borderRadius: 16, padding: 20, border: `1px solid ${p.status === "aktiv" ? "#1e3a2a" : "#1e293b"}`, display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Header */}
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", marginBottom: 3 }}>{p.meta.name || "Unbenannt"}</div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m² · {p.meta.rooms} Zi.</div>
+      </div>
+      {/* 3 scenarios */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+        {[
+          { label: "🔴 Pess.", value: pess.profit, nights: pess.nights },
+          { label: "🟡 Real.", value: real.profit, nights: real.nights },
+          { label: "🟢 Opt.",  value: opt.profit,  nights: opt.nights  },
+        ].map((s, i) => (
+          <div key={i} style={{ background: "#0f172a", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#64748b", marginBottom: 3 }}>{s.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: s.value >= 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>{eur(s.value)}</div>
+            <div style={{ fontSize: 9, color: "#475569" }}>{s.nights} N.</div>
+          </div>
+        ))}
+      </div>
+      {/* Actual this month */}
+      {hasActual ? (
+        <div style={{ background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: `1px solid ${actualProfit >= 0 ? "#4ade8033" : "#f8717133"}` }}>
+          <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>Ist · {new Date(currentMonth + "-15").toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+            <span style={{ color: "#4ade80" }}>+{eur(actualRev)}</span>
+            <span style={{ color: "#f87171" }}>−{eur(actualExp)}</span>
+            <span style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{actualProfit >= 0 ? "+" : ""}{eur(actualProfit)}</span>
+          </div>
+          <div style={{ fontSize: 10, color: actualProfit >= real.profit ? "#4ade80" : "#f87171", marginTop: 4 }}>
+            {actualProfit >= real.profit ? "▲ " : "▼ "}{eur(Math.abs(actualProfit - real.profit))} vs. Plan
+          </div>
+        </div>
+      ) : p.status === "aktiv" ? (
+        <div style={{ fontSize: 11, color: "#334155", textAlign: "center" }}>Noch keine Ist-Daten für diesen Monat</div>
+      ) : null}
+      {/* KPI row */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+          <div style={{ fontSize: 9, color: "#64748b" }}>Break-even</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", fontFamily: "'DM Mono', monospace" }}>{real.beNights} N./Mo.</div>
+        </div>
+        <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+          <div style={{ fontSize: 9, color: "#64748b" }}>Kapital</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono', monospace" }}>{eur(startup)}</div>
+        </div>
+        {real.paybackMonths && (
+          <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 9, color: "#64748b" }}>Amortis.</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#a78bfa", fontFamily: "'DM Mono', monospace" }}>{real.paybackMonths} Mo.</div>
+          </div>
+        )}
+      </div>
+      {/* Project progress */}
+      {pb !== null && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontSize: 9, color: "#64748b" }}>Projektfortschritt</div>
+            <div style={{ fontSize: 9, color: pb === 100 ? "#4ade80" : "#64748b", fontWeight: 700 }}>{pb}%</div>
+          </div>
+          <div style={{ height: 4, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 2, transition: "width 0.3s" }} />
+          </div>
+        </div>
+      )}
+    </div>
+    );
+  };
+
   return (
     <div>
-      <SectionTitle icon="🏦" title="Portfolio-Dashboard" sub={`${properties.length} Objekt${properties.length !== 1 ? "e" : ""} · Gesamtübersicht`} />
+      <SectionTitle icon="🏦" title="Portfolio-Dashboard" sub={`${aktiv.length} im Betrieb · ${watchlist.length} auf Watchlist`} />
 
-      {/* Top KPIs */}
+      {/* Top KPIs — nur aktiv */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
-        <KPI label="Objekte" value={properties.length} color="#e2e8f0" />
-        <KPI label="Geplanter Gewinn/Mo." value={eur(totalPlannedProfit)} sub="realistisch, gesamt" color={totalPlannedProfit >= 0 ? "#4ade80" : "#f87171"} />
-        <KPI label="Kapitaleinsatz gesamt" value={eur(totalCapital)} sub="Kaution + Setup" color="#fbbf24" />
-        <KPI label="Ø ROI" value={pct(avgROI)} sub="realistisch" color={avgROI >= 0 ? "#4ade80" : "#f87171"} />
+        <KPI label="Im Betrieb" value={aktiv.length} sub={`${watchlist.length} auf Watchlist`} color="#4ade80" />
+        <KPI label="Gewinn/Mo. gesamt" value={eur(totalPlannedProfit)} sub="realistisch, nur aktiv" color={totalPlannedProfit >= 0 ? "#4ade80" : "#f87171"} />
+        <KPI label="Kapitaleinsatz" value={eur(totalCapital)} sub="nur aktive Einheiten" color="#fbbf24" />
+        <KPI label="Ø ROI" value={aktiv.length > 0 ? pct(avgROI) : "—"} sub="realistisch, nur aktiv" color={avgROI >= 0 ? "#4ade80" : "#f87171"} />
       </div>
 
       {/* This month actual summary */}
       {propsWithActual.length > 0 && (
         <div style={{ background: "#0a1628", borderRadius: 14, padding: 18, marginBottom: 24, border: "1px solid #1d4ed8" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", letterSpacing: 1.5, marginBottom: 14, textTransform: "uppercase" }}>
-            📅 {fmtMonth(currentMonth)} — Ist-Ergebnis ({propsWithActual.length}/{properties.length} Objekte mit Daten)
+            📅 {new Date(currentMonth + "-15").toLocaleDateString("de-DE", { month: "long", year: "numeric" })} — Ist-Ergebnis ({propsWithActual.length}/{aktiv.length} aktive Einheiten mit Daten)
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <KPI label="Ist-Einnahmen" value={eur(totalActualRev)} color="#4ade80" />
@@ -1492,84 +1587,31 @@ function TabPortfolio({ properties }) {
         </div>
       )}
 
-      {/* Property cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-        {propData.map(({ p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup }) => {
-          const actualProfit = actualRev - actualExp;
-          return (
-            <div key={p.id} style={{ background: "#0a1628", borderRadius: 16, padding: 20, border: "1px solid #1e293b", display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Header */}
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", marginBottom: 3 }}>{p.meta.name || "Unbenannt"}</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m² · {p.meta.rooms} Zi.</div>
-              </div>
+      {/* Aktive Einheiten */}
+      {aktiv.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>Im Betrieb ({aktiv.length})</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+            {aktiv.map(d => <PropertyCard key={d.p.id} {...d} />)}
+          </div>
+        </div>
+      )}
 
-              {/* 3 scenarios */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                {[
-                  { label: "🔴 Pess.", value: pess.profit, nights: pess.nights },
-                  { label: "🟡 Real.", value: real.profit, nights: real.nights },
-                  { label: "🟢 Opt.",  value: opt.profit,  nights: opt.nights  },
-                ].map((s, i) => (
-                  <div key={i} style={{ background: "#0f172a", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "#64748b", marginBottom: 3 }}>{s.label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: s.value >= 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>{eur(s.value)}</div>
-                    <div style={{ fontSize: 9, color: "#475569" }}>{s.nights} N.</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Actual this month */}
-              {hasActual ? (
-                <div style={{ background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: `1px solid ${actualProfit >= 0 ? "#4ade8033" : "#f8717133"}` }}>
-                  <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>Ist · {fmtMonth(currentMonth)}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                    <span style={{ color: "#4ade80" }}>+{eur(actualRev)}</span>
-                    <span style={{ color: "#f87171" }}>−{eur(actualExp)}</span>
-                    <span style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{actualProfit >= 0 ? "+" : ""}{eur(actualProfit)}</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: actualProfit >= real.profit ? "#4ade80" : "#f87171", marginTop: 4 }}>
-                    {actualProfit >= real.profit ? "▲ " : "▼ "}{eur(Math.abs(actualProfit - real.profit))} vs. Plan
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 11, color: "#334155", textAlign: "center" }}>Kein Ist-Daten für {fmtMonth(currentMonth)}</div>
-              )}
-
-              {/* KPI row */}
-              <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 9, color: "#64748b" }}>Break-even</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", fontFamily: "'DM Mono', monospace" }}>{real.beNights} N./Mo.</div>
-                </div>
-                <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 9, color: "#64748b" }}>Kapital</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono', monospace" }}>{eur(startup)}</div>
-                </div>
-                {real.paybackMonths && (
-                  <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
-                    <div style={{ fontSize: 9, color: "#64748b" }}>Amortis.</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#a78bfa", fontFamily: "'DM Mono', monospace" }}>{real.paybackMonths} Mo.</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Project progress */}
-              {pb !== null && (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <div style={{ fontSize: 9, color: "#64748b" }}>Projektfortschritt</div>
-                    <div style={{ fontSize: 9, color: pb === 100 ? "#4ade80" : "#64748b", fontWeight: 700 }}>{pb}%</div>
-                  </div>
-                  <div style={{ height: 4, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 2, transition: "width 0.3s" }} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {/* Watchlist */}
+      {watchlist.length > 0 && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#64748b" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>Watchlist ({watchlist.length}) — nicht in Summen enthalten</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+            {watchlist.map(d => <PropertyCard key={d.p.id} {...d} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1663,26 +1705,40 @@ export default function App() {
         </div>
 
         <div style={{ padding: 12, flex: 1, overflowY: "auto" }}>
-          <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Objekte</div>
           {properties.length === 0 && <div style={{ fontSize: 11, color: "#334155", padding: "8px 0" }}>Noch keine Objekte.</div>}
-          {properties.map(p => {
-            const pb = projProgress(p);
-            const isActive = activeId === p.id && !globalView;
+          {[
+            { key: "aktiv",     label: "Im Betrieb", dot: "#4ade80" },
+            { key: "watchlist", label: "Watchlist",  dot: "#64748b" },
+          ].map(group => {
+            const grouped = properties.filter(p => (p.status || "watchlist") === group.key);
+            if (grouped.length === 0) return null;
             return (
-              <div key={p.id} onClick={() => handleSelect(p)}
-                style={{ borderRadius: 8, padding: "10px", marginBottom: 6, cursor: "pointer", background: isActive ? "#1e3a5f" : "transparent", border: `1px solid ${isActive ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.meta.name || "Unbenannt"}</span>
-                  {pb !== null && <span style={{ fontSize: 10, color: pb === 100 ? "#4ade80" : "#64748b", flexShrink: 0, marginLeft: 4 }}>{pb}%</span>}
+              <div key={group.key} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#334155", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: group.dot }} />
+                  {group.label}
                 </div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m²</div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>{eur(p.costs.coldRent)}/Monat KM</div>
-                {pb !== null && pb > 0 && (
-                  <div style={{ height: 2, background: "#1e293b", borderRadius: 1, marginTop: 5 }}>
-                    <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 1 }} />
-                  </div>
-                )}
-                <div onClick={e => { e.stopPropagation(); handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
+                {grouped.map(p => {
+                  const pb = projProgress(p);
+                  const isSelected = activeId === p.id && !globalView;
+                  return (
+                    <div key={p.id} onClick={() => handleSelect(p)}
+                      style={{ borderRadius: 8, padding: "10px", marginBottom: 5, cursor: "pointer", background: isSelected ? "#1e3a5f" : "transparent", border: `1px solid ${isSelected ? "#3b82f6" : "transparent"}`, transition: "all 0.15s" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.meta.name || "Unbenannt"}</span>
+                        {pb !== null && <span style={{ fontSize: 10, color: pb === 100 ? "#4ade80" : "#64748b", flexShrink: 0, marginLeft: 4 }}>{pb}%</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m²</div>
+                      <div style={{ fontSize: 10, color: "#64748b" }}>{eur(p.costs.coldRent)}/Monat KM</div>
+                      {pb !== null && pb > 0 && (
+                        <div style={{ height: 2, background: "#1e293b", borderRadius: 1, marginTop: 5 }}>
+                          <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 1 }} />
+                        </div>
+                      )}
+                      <div onClick={e => { e.stopPropagation(); handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
