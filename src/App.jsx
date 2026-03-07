@@ -219,6 +219,7 @@ const newProperty = () => ({
   project: { phases: DEFAULT_PHASES(), projectStart: todayStr(), targetLaunch: "" },
   umnutzung: { city: "", steps: {} },
   photos: [],
+  tracker: { entries: [] },
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -1132,14 +1133,359 @@ function TabUmnutzung({ p, set }) {
   );
 }
 
+const EXPENSE_CATEGORIES = [
+  "Kaltmiete", "Nebenkosten", "Internet", "Reinigung", "Supplies & Verbrauch",
+  "Versicherung", "Reparatur / Instandhaltung", "Property Management", "Sonstiges",
+];
+
+// ─── Tracker Tab ──────────────────────────────────────────────────────────────
+function TabTracker({ p, set }) {
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [addType, setAddType] = useState(null);
+  const [form, setForm] = useState({ category: EXPENSE_CATEGORIES[0], amount: 0, note: "" });
+
+  const allEntries = p.tracker?.entries || [];
+  const entries = allEntries.filter(e => e.month === month);
+  const revenues = entries.filter(e => e.type === "revenue");
+  const expenses = entries.filter(e => e.type === "expense");
+  const totalRevenue = revenues.reduce((s, e) => s + e.amount, 0);
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const actualProfit = totalRevenue - totalExpenses;
+  const hasData = entries.length > 0;
+
+  const planned = calcScenario(p, p.airbnb.realisticNights);
+
+  const shiftMonth = (delta) => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const addEntry = () => {
+    if (!form.amount) return;
+    const entry = {
+      id: uid(), month, type: addType,
+      category: addType === "revenue" ? "Airbnb-Einnahme" : form.category,
+      amount: +form.amount, note: form.note,
+    };
+    set(prev => ({ ...prev, tracker: { ...prev.tracker, entries: [...(prev.tracker?.entries || []), entry] } }));
+    setForm({ category: EXPENSE_CATEGORIES[0], amount: 0, note: "" });
+    setAddType(null);
+  };
+
+  const deleteEntry = (id) =>
+    set(prev => ({ ...prev, tracker: { ...prev.tracker, entries: (prev.tracker?.entries || []).filter(e => e.id !== id) } }));
+
+  const fmtMonth = (m) => new Date(m + "-15").toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+
+  const histMonths = [...new Set(allEntries.map(e => e.month))].sort().reverse().filter(m => m !== month);
+
+  return (
+    <div>
+      <SectionTitle icon="💰" title="Ausgaben-Tracker" sub="Ist-Daten erfassen · Geplant vs. Tatsächlich" />
+
+      {/* Month nav */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24, background: "#0a1628", borderRadius: 12, padding: "12px 18px", border: "1px solid #1e293b" }}>
+        <button onClick={() => shiftMonth(-1)} style={{ background: "#1e293b", border: "none", borderRadius: 6, padding: "5px 14px", color: "#94a3b8", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 16 }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 15, fontWeight: 700, color: "#f1f5f9" }}>{fmtMonth(month)}</div>
+        <button onClick={() => shiftMonth(1)} style={{ background: "#1e293b", border: "none", borderRadius: 6, padding: "5px 14px", color: "#94a3b8", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 16 }}>›</button>
+      </div>
+
+      {/* Geplant vs Ist */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+        <div style={{ background: "#0f172a", borderRadius: 14, padding: 18, border: "1px solid #1e293b" }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>📋 Geplant (realistisch)</div>
+          <Row label="Einnahmen" value={planned.revenue} green />
+          <Row label="Variable Kosten" value={planned.varCosts} minus />
+          <Row label="Fixkosten" value={planned.fixedCosts} minus />
+          <div style={{ borderTop: "1px solid #1e293b", paddingTop: 6, marginTop: 2 }}>
+            <Row label="Gewinn" value={planned.profit} bold green={planned.profit >= 0} minus={planned.profit < 0} />
+          </div>
+        </div>
+        <div style={{ background: "#0f172a", borderRadius: 14, padding: 18, border: `1px solid ${hasData ? (actualProfit >= 0 ? "#4ade8033" : "#f8717133") : "#1e293b"}` }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
+            {hasData ? "✅ Ist (erfasst)" : "⏳ Ist (keine Daten)"}
+          </div>
+          {hasData ? (
+            <>
+              <Row label="Einnahmen" value={totalRevenue} green />
+              <Row label="Ausgaben" value={totalExpenses} minus />
+              <div style={{ borderTop: "1px solid #1e293b", paddingTop: 6, marginTop: 2 }}>
+                <Row label="Gewinn" value={actualProfit} bold green={actualProfit >= 0} minus={actualProfit < 0} />
+              </div>
+              <div style={{ marginTop: 10, padding: "8px 12px", background: "#1e293b", borderRadius: 8 }}>
+                <div style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>Abweichung vom Plan</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: actualProfit >= planned.profit ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>
+                  {actualProfit >= planned.profit ? "+" : ""}{eur(actualProfit - planned.profit)}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: "20px 0", color: "#334155", fontSize: 12 }}>Buchungen und Ausgaben eintragen um Ist-Daten zu sehen.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Revenues */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>📥 Einnahmen</div>
+          <button onClick={() => { setAddType("revenue"); setForm({ category: "", amount: 0, note: "" }); }}
+            style={{ background: "#052e16", border: "1px solid #4ade8033", borderRadius: 6, padding: "4px 12px", color: "#4ade80", fontSize: 11, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+            + Einnahme
+          </button>
+        </div>
+        {revenues.length === 0 && <div style={{ fontSize: 12, color: "#334155", padding: "8px 0" }}>Keine Einnahmen erfasst.</div>}
+        {revenues.map(e => (
+          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#0a1628", borderRadius: 8, marginBottom: 6, border: "1px solid #1e293b" }}>
+            <div style={{ flex: 1, fontSize: 12, color: "#e2e8f0" }}>{e.note || e.category}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", fontFamily: "'DM Mono', monospace" }}>+{eur(e.amount)}</div>
+            <span onClick={() => deleteEntry(e.id)} style={{ color: "#334155", cursor: "pointer", fontSize: 14 }}>✕</span>
+          </div>
+        ))}
+        {revenues.length > 1 && <div style={{ textAlign: "right", fontSize: 12, color: "#4ade80", fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>Gesamt: +{eur(totalRevenue)}</div>}
+      </div>
+
+      {/* Expenses */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 1.5, textTransform: "uppercase" }}>📤 Ausgaben</div>
+          <button onClick={() => { setAddType("expense"); setForm({ category: EXPENSE_CATEGORIES[0], amount: 0, note: "" }); }}
+            style={{ background: "#1c0505", border: "1px solid #f8717133", borderRadius: 6, padding: "4px 12px", color: "#f87171", fontSize: 11, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+            + Ausgabe
+          </button>
+        </div>
+        {expenses.length === 0 && <div style={{ fontSize: 12, color: "#334155", padding: "8px 0" }}>Keine Ausgaben erfasst.</div>}
+        {expenses.map(e => (
+          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#0a1628", borderRadius: 8, marginBottom: 6, border: "1px solid #1e293b" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: "#e2e8f0" }}>{e.category}</div>
+              {e.note && <div style={{ fontSize: 11, color: "#64748b" }}>{e.note}</div>}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#f87171", fontFamily: "'DM Mono', monospace" }}>−{eur(e.amount)}</div>
+            <span onClick={() => deleteEntry(e.id)} style={{ color: "#334155", cursor: "pointer", fontSize: 14 }}>✕</span>
+          </div>
+        ))}
+        {expenses.length > 1 && <div style={{ textAlign: "right", fontSize: 12, color: "#f87171", fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>Gesamt: −{eur(totalExpenses)}</div>}
+      </div>
+
+      {/* Add form */}
+      {addType && (
+        <div style={{ background: "#0a1628", borderRadius: 14, padding: 18, border: `1px solid ${addType === "revenue" ? "#4ade8044" : "#f8717144"}`, marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: addType === "revenue" ? "#4ade80" : "#f87171", letterSpacing: 1.5, marginBottom: 14, textTransform: "uppercase" }}>
+            {addType === "revenue" ? "Einnahme erfassen" : "Ausgabe erfassen"}
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {addType === "expense" && (
+              <Field label="Kategorie" half>
+                <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  style={{ ...inputStyle, cursor: "pointer" }}>
+                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+            )}
+            <Input label="Betrag (€)" value={form.amount} onChange={v => setForm(f => ({ ...f, amount: v }))} half={addType === "expense"} prefix="€" />
+            <Input label={addType === "revenue" ? "Notiz (z.B. Buchung, Gäste)" : "Notiz (optional)"} value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} type="text" />
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button onClick={addEntry}
+              style={{ background: addType === "revenue" ? "#052e16" : "#1c0505", border: `1px solid ${addType === "revenue" ? "#4ade80" : "#f87171"}`, borderRadius: 8, padding: "8px 20px", color: addType === "revenue" ? "#4ade80" : "#f87171", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+              Speichern
+            </button>
+            <button onClick={() => setAddType(null)}
+              style={{ background: "transparent", border: "1px solid #334155", borderRadius: 8, padding: "8px 16px", color: "#64748b", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* History */}
+      {histMonths.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, marginBottom: 10, textTransform: "uppercase" }}>📅 Verlauf</div>
+          {histMonths.slice(0, 6).map(m => {
+            const me = allEntries.filter(e => e.month === m);
+            const mr = me.filter(e => e.type === "revenue").reduce((s, e) => s + e.amount, 0);
+            const mx = me.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+            const mp = mr - mx;
+            return (
+              <div key={m} onClick={() => setMonth(m)}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#0a1628", borderRadius: 8, border: "1px solid #1e293b", cursor: "pointer", marginBottom: 6 }}>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>{fmtMonth(m)}</div>
+                <div style={{ display: "flex", gap: 16, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                  <span style={{ color: "#4ade80" }}>+{eur(mr)}</span>
+                  <span style={{ color: "#f87171" }}>−{eur(mx)}</span>
+                  <span style={{ color: mp >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{mp >= 0 ? "+" : ""}{eur(mp)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Portfolio Tab ────────────────────────────────────────────────────────────
+function TabPortfolio({ properties }) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const fmtMonth = (m) => new Date(m + "-15").toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+
+  if (properties.length === 0) {
+    return (
+      <div>
+        <SectionTitle icon="🏦" title="Portfolio-Dashboard" sub="Alle Objekte auf einen Blick" />
+        <div style={{ background: "#1e293b", borderRadius: 10, padding: 32, textAlign: "center", color: "#475569", fontSize: 13 }}>
+          Noch keine Objekte gespeichert.<br />Erstelle ein Objekt und speichere es.
+        </div>
+      </div>
+    );
+  }
+
+  const propData = properties.map(p => {
+    const real  = calcScenario(p, p.airbnb.realisticNights);
+    const pess  = calcScenario(p, p.airbnb.pessimisticNights);
+    const opt   = calcScenario(p, p.airbnb.optimisticNights);
+    const entries = (p.tracker?.entries || []).filter(e => e.month === currentMonth);
+    const actualRev = entries.filter(e => e.type === "revenue").reduce((s, e) => s + e.amount, 0);
+    const actualExp = entries.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+    const hasActual = entries.length > 0;
+    const pb = (() => {
+      if (!p.project?.phases) return null;
+      const all = p.project.phases.flatMap(ph => ph.milestones);
+      return all.length > 0 ? Math.round((all.filter(m => m.status === "erledigt").length / all.length) * 100) : 0;
+    })();
+    const startup = p.costs.deposit + p.setup.furnitureCost + p.setup.renovationCost + p.setup.otherSetup;
+    return { p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup };
+  });
+
+  const totalPlannedProfit  = propData.reduce((s, d) => s + d.real.profit, 0);
+  const totalCapital        = propData.reduce((s, d) => s + d.startup, 0);
+  const avgROI              = propData.reduce((s, d) => s + d.real.roi, 0) / propData.length;
+  const propsWithActual     = propData.filter(d => d.hasActual);
+  const totalActualRev      = propsWithActual.reduce((s, d) => s + d.actualRev, 0);
+  const totalActualExp      = propsWithActual.reduce((s, d) => s + d.actualExp, 0);
+  const totalActualProfit   = totalActualRev - totalActualExp;
+
+  return (
+    <div>
+      <SectionTitle icon="🏦" title="Portfolio-Dashboard" sub={`${properties.length} Objekt${properties.length !== 1 ? "e" : ""} · Gesamtübersicht`} />
+
+      {/* Top KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+        <KPI label="Objekte" value={properties.length} color="#e2e8f0" />
+        <KPI label="Geplanter Gewinn/Mo." value={eur(totalPlannedProfit)} sub="realistisch, gesamt" color={totalPlannedProfit >= 0 ? "#4ade80" : "#f87171"} />
+        <KPI label="Kapitaleinsatz gesamt" value={eur(totalCapital)} sub="Kaution + Setup" color="#fbbf24" />
+        <KPI label="Ø ROI" value={pct(avgROI)} sub="realistisch" color={avgROI >= 0 ? "#4ade80" : "#f87171"} />
+      </div>
+
+      {/* This month actual summary */}
+      {propsWithActual.length > 0 && (
+        <div style={{ background: "#0a1628", borderRadius: 14, padding: 18, marginBottom: 24, border: "1px solid #1d4ed8" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", letterSpacing: 1.5, marginBottom: 14, textTransform: "uppercase" }}>
+            📅 {fmtMonth(currentMonth)} — Ist-Ergebnis ({propsWithActual.length}/{properties.length} Objekte mit Daten)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <KPI label="Ist-Einnahmen" value={eur(totalActualRev)} color="#4ade80" />
+            <KPI label="Ist-Ausgaben" value={eur(totalActualExp)} color="#f87171" />
+            <KPI label="Ist-Gewinn" value={eur(totalActualProfit)} color={totalActualProfit >= 0 ? "#4ade80" : "#f87171"} sub={`Plan: ${eur(totalPlannedProfit)}`} />
+          </div>
+        </div>
+      )}
+
+      {/* Property cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        {propData.map(({ p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup }) => {
+          const actualProfit = actualRev - actualExp;
+          return (
+            <div key={p.id} style={{ background: "#0a1628", borderRadius: 16, padding: 20, border: "1px solid #1e293b", display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Header */}
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", marginBottom: 3 }}>{p.meta.name || "Unbenannt"}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>{p.meta.city || "—"} · {p.meta.sqm} m² · {p.meta.rooms} Zi.</div>
+              </div>
+
+              {/* 3 scenarios */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                {[
+                  { label: "🔴 Pess.", value: pess.profit, nights: pess.nights },
+                  { label: "🟡 Real.", value: real.profit, nights: real.nights },
+                  { label: "🟢 Opt.",  value: opt.profit,  nights: opt.nights  },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: "#0f172a", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "#64748b", marginBottom: 3 }}>{s.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: s.value >= 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>{eur(s.value)}</div>
+                    <div style={{ fontSize: 9, color: "#475569" }}>{s.nights} N.</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actual this month */}
+              {hasActual ? (
+                <div style={{ background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: `1px solid ${actualProfit >= 0 ? "#4ade8033" : "#f8717133"}` }}>
+                  <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>Ist · {fmtMonth(currentMonth)}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                    <span style={{ color: "#4ade80" }}>+{eur(actualRev)}</span>
+                    <span style={{ color: "#f87171" }}>−{eur(actualExp)}</span>
+                    <span style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{actualProfit >= 0 ? "+" : ""}{eur(actualProfit)}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: actualProfit >= real.profit ? "#4ade80" : "#f87171", marginTop: 4 }}>
+                    {actualProfit >= real.profit ? "▲ " : "▼ "}{eur(Math.abs(actualProfit - real.profit))} vs. Plan
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: "#334155", textAlign: "center" }}>Kein Ist-Daten für {fmtMonth(currentMonth)}</div>
+              )}
+
+              {/* KPI row */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: "#64748b" }}>Break-even</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", fontFamily: "'DM Mono', monospace" }}>{real.beNights} N./Mo.</div>
+                </div>
+                <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: "#64748b" }}>Kapital</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono', monospace" }}>{eur(startup)}</div>
+                </div>
+                {real.paybackMonths && (
+                  <div style={{ flex: 1, background: "#0f172a", borderRadius: 8, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 9, color: "#64748b" }}>Amortis.</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#a78bfa", fontFamily: "'DM Mono', monospace" }}>{real.paybackMonths} Mo.</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Project progress */}
+              {pb !== null && (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <div style={{ fontSize: 9, color: "#64748b" }}>Projektfortschritt</div>
+                    <div style={{ fontSize: 9, color: pb === 100 ? "#4ade80" : "#64748b", fontWeight: 700 }}>{pb}%</div>
+                  </div>
+                  <div style={{ height: 4, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 2, transition: "width 0.3s" }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "stammdaten", label: "Objekt",      icon: "🏢" },
   { id: "kosten",     label: "Kosten",      icon: "💶" },
   { id: "einnahmen",  label: "Einnahmen",   icon: "📈" },
   { id: "auswertung", label: "Auswertung",  icon: "📊" },
+  { id: "tracker",    label: "Tracker",     icon: "💰" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
   { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
-  { id: "karte",      label: "Karte",        icon: "🗺️" },
+  { id: "portfolio",  label: "Portfolio",   icon: "🏦" },
+  { id: "karte",      label: "Karte",       icon: "🗺️" },
 ];
 
 export default function App() {
@@ -1257,9 +1603,11 @@ export default function App() {
           {tab === "kosten"     && <TabKosten p={current} set={setCurrent} />}
           {tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
           {tab === "auswertung" && <TabAuswertung p={current} />}
+          {tab === "tracker"    && <TabTracker p={current} set={setCurrent} />}
           {tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
-          {tab === "umnutzung" && <TabUmnutzung p={current} set={setCurrent} />}
-          {tab === "karte"     && <TabKarte properties={properties} />}
+          {tab === "umnutzung"  && <TabUmnutzung p={current} set={setCurrent} />}
+          {tab === "portfolio"  && <TabPortfolio properties={properties} />}
+          {tab === "karte"      && <TabKarte properties={properties} />}
         </div>
       </div>
     </div>
