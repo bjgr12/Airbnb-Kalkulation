@@ -220,6 +220,7 @@ const newProperty = () => ({
   umnutzung: { city: "", steps: {} },
   photos: [],
   tracker: { entries: [] },
+  log: { entries: [] },
 });
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
@@ -1133,6 +1134,103 @@ function TabUmnutzung({ p, set }) {
   );
 }
 
+const LOG_CATEGORIES = [
+  { id: "allgemein",  label: "Allgemein",   color: "#64748b" },
+  { id: "vermieter",  label: "Vermieter",   color: "#60a5fa" },
+  { id: "behoerde",   label: "Behörde",     color: "#f59e0b" },
+  { id: "handwerker", label: "Handwerker",  color: "#fb923c" },
+  { id: "buchung",    label: "Buchung",     color: "#4ade80" },
+  { id: "sonstiges",  label: "Sonstiges",   color: "#a78bfa" },
+];
+
+function TabLog({ p, set }) {
+  const [text, setText] = useState("");
+  const [category, setCategory] = useState("allgemein");
+  const [date, setDate] = useState(todayStr());
+
+  const entries = [...(p.log?.entries || [])].sort((a, b) => b.date.localeCompare(a.date));
+
+  const addEntry = () => {
+    if (!text.trim()) return;
+    const entry = { id: uid(), date, category, text: text.trim() };
+    set(prev => ({ ...prev, log: { ...prev.log, entries: [...(prev.log?.entries || []), entry] } }));
+    setText("");
+    setDate(todayStr());
+  };
+
+  const deleteEntry = (id) =>
+    set(prev => ({ ...prev, log: { ...prev.log, entries: (prev.log?.entries || []).filter(e => e.id !== id) } }));
+
+  const getCat = (id) => LOG_CATEGORIES.find(c => c.id === id) || LOG_CATEGORIES[0];
+
+  return (
+    <div>
+      <SectionTitle icon="📝" title="Notizen-Log" sub="Chronologisches Protokoll — Vermieter, Behörden, Handwerker, Buchungen" />
+
+      {/* Input */}
+      <div style={{ background: "#0a1628", borderRadius: 14, padding: 18, border: "1px solid #1e293b", marginBottom: 28 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <Field label="Datum" half>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ ...inputStyle, fontSize: 13, padding: "8px 12px" }} />
+          </Field>
+          <Field label="Kategorie" half>
+            <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+              {LOG_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Notiz">
+          <textarea value={text} onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addEntry(); }}
+            placeholder="Was ist passiert? Wer wurde kontaktiert? Was wurde besprochen…"
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} />
+        </Field>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={addEntry} disabled={!text.trim()}
+            style={{ background: text.trim() ? "#1d4ed8" : "#1e293b", border: "none", borderRadius: 8, padding: "8px 20px", color: text.trim() ? "white" : "#475569", fontSize: 12, cursor: text.trim() ? "pointer" : "default", fontFamily: "'DM Mono', monospace" }}>
+            Eintrag speichern
+          </button>
+          <span style={{ fontSize: 11, color: "#334155" }}>oder ⌘ + Enter</span>
+        </div>
+      </div>
+
+      {/* Log entries */}
+      {entries.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "32px 0", color: "#334155", fontSize: 13 }}>Noch keine Einträge.<br />Protokolliere Gespräche, Entscheidungen und Ereignisse.</div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          {/* Timeline line */}
+          <div style={{ position: "absolute", left: 15, top: 0, bottom: 0, width: 2, background: "#1e293b" }} />
+          {entries.map((e, i) => {
+            const cat = getCat(e.category);
+            return (
+              <div key={e.id} style={{ display: "flex", gap: 16, marginBottom: 16, position: "relative" }}>
+                {/* Dot */}
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: cat.color + "22", border: `2px solid ${cat.color}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 1 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />
+                </div>
+                {/* Card */}
+                <div style={{ flex: 1, background: "#0a1628", borderRadius: 12, padding: "12px 16px", border: "1px solid #1e293b" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: cat.color, background: cat.color + "22", borderRadius: 4, padding: "2px 7px", letterSpacing: 1 }}>{cat.label.toUpperCase()}</span>
+                      <span style={{ fontSize: 11, color: "#475569", fontFamily: "'DM Mono', monospace" }}>{fmtDate(e.date)}</span>
+                    </div>
+                    <span onClick={() => deleteEntry(e.id)} style={{ color: "#334155", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>✕</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{e.text}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const EXPENSE_CATEGORIES = [
   "Kaltmiete", "Nebenkosten", "Internet", "Reinigung", "Supplies & Verbrauch",
   "Versicherung", "Reparatur / Instandhaltung", "Property Management", "Sonstiges",
@@ -1482,6 +1580,7 @@ const TABS = [
   { id: "einnahmen",  label: "Einnahmen",   icon: "📈" },
   { id: "auswertung", label: "Auswertung",  icon: "📊" },
   { id: "tracker",    label: "Tracker",     icon: "💰" },
+  { id: "log",        label: "Notizen",     icon: "📝" },
   { id: "projekt",    label: "Projektplan", icon: "🗓️" },
   { id: "umnutzung",  label: "Umnutzung",   icon: "🏛️" },
 ];
@@ -1634,6 +1733,7 @@ export default function App() {
           {!globalView && tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
           {!globalView && tab === "auswertung" && <TabAuswertung p={current} />}
           {!globalView && tab === "tracker"    && <TabTracker p={current} set={setCurrent} />}
+          {!globalView && tab === "log"        && <TabLog p={current} set={setCurrent} />}
           {!globalView && tab === "projekt"    && <TabProjekt p={current} set={setCurrent} />}
           {!globalView && tab === "umnutzung"  && <TabUmnutzung p={current} set={setCurrent} />}
         </div>
