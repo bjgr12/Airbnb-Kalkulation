@@ -1928,7 +1928,7 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
 
       {/* Sidebar */}
-      <div style={{ width: 224, background: "#14532d", borderRight: "1px solid #f1f5f9", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ width: 224, background: "#f8fafc", borderRight: "1px solid #f1f5f9", display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "20px 16px", borderBottom: "1px solid #f1f5f9" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", letterSpacing: 2, marginBottom: 4 }}>PROPERTY</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#0f172a", fontWeight: 800 }}>Analyzer</div>
@@ -1994,7 +1994,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {globalView ? (
           /* Global view header */
-          <div style={{ background: "#14532d", borderBottom: "1px solid #f1f5f9", padding: "12px 24px", display: "flex", alignItems: "center" }}>
+          <div style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", padding: "12px 24px", display: "flex", alignItems: "center" }}>
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#0f172a" }}>
               {GLOBAL_VIEWS.find(v => v.id === globalView)?.icon} {GLOBAL_VIEWS.find(v => v.id === globalView)?.label}
             </span>
@@ -2002,7 +2002,7 @@ export default function App() {
         ) : (
           /* Property header + tabs */
           <>
-            <div style={{ background: "#14532d", borderBottom: "1px solid #f1f5f9", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, color: "#0f172a" }}>{current.meta.name || "Neues Objekt"}</span>
                 {current.meta.city && <span style={{ fontSize: 11, color: "#64748b" }}>{current.meta.zip} {current.meta.city} · {current.meta.sqm} m²</span>}
@@ -2011,7 +2011,7 @@ export default function App() {
                 {saved ? "✓ Gespeichert" : "💾 Speichern"}
               </button>
             </div>
-            <div style={{ background: "#14532d", borderBottom: "1px solid #f1f5f9", display: "flex", padding: "0 24px" }}>
+            <div style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", display: "flex", padding: "0 24px" }}>
               {TABS.map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}
                   style={{ background: "none", border: "none", padding: "12px 16px", color: tab === t.id ? "#16a34a" : "#64748b", borderBottom: tab === t.id ? "2px solid #16a34a" : "2px solid transparent", cursor: "pointer", fontSize: 13, fontFamily: "'DM Mono', monospace", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }}>
