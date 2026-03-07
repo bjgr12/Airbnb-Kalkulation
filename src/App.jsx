@@ -255,6 +255,138 @@ function calcLongterm(p) {
 // ─── Konzept HTML Export ──────────────────────────────────────────────────────
 const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
+// ─── Mietvertrag HTML Export ──────────────────────────────────────────────────
+function mietvertragHtml(p, v) {
+  const m = p.meta || {};
+  const c = p.costs || {};
+  const k = p.konzept || {};
+  const date = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+  const mietbeginn = v.mietbeginn
+    ? new Date(v.mietbeginn + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" })
+    : "_______________";
+  const gesamtmiete = (c.coldRent || 0) + (c.nk || 0);
+  const adresse = [m.address, m.zip && m.city ? m.zip + " " + m.city : m.city].filter(Boolean).join(", ") || "—";
+
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Mietvertrag – ${esc(m.name || "Objekt")}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:#1f2937;background:#fff;font-size:13px;line-height:1.7}
+  .page{max-width:800px;margin:0 auto;padding:48px 40px}
+  h1{font-family:'Playfair Display',serif;font-size:28px;color:#111827;margin-bottom:4px}
+  h2{font-size:13px;font-weight:700;color:#111827;margin:28px 0 10px;padding-bottom:5px;border-bottom:2px solid #111827;text-transform:uppercase;letter-spacing:0.5px}
+  .subtitle{color:#6b7280;font-size:13px;margin-bottom:24px}
+  .cover{border-bottom:2px solid #111827;padding-bottom:20px;margin-bottom:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px;margin-bottom:12px}
+  .kv{padding:5px 0;border-bottom:1px solid #f3f4f6}
+  .kv .label{font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:2px}
+  .kv .value{font-size:13px;color:#111827;font-weight:500}
+  p{margin-bottom:8px;color:#374151}
+  .highlight{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 20px;margin:12px 0}
+  .sig-block{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:48px}
+  .sig-line{border-bottom:1px solid #374151;height:40px;margin-bottom:6px}
+  .note{font-size:11px;color:#9ca3af;font-style:italic}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{padding:24px}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="cover">
+    <div class="subtitle">Mietvertrag (Untermietvertrag) · Erstellt am ${date}</div>
+    <h1>${esc(m.name || "Mietobjekt")}</h1>
+    <div class="subtitle" style="margin-bottom:0">${esc(adresse)}</div>
+  </div>
+
+  <h2>§ 1 Vertragsparteien</h2>
+  <div class="grid2">
+    <div>
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Vermieter</div>
+      <div class="kv"><div class="label">Name</div><div class="value">${esc(v.vermieterName || "_______________")}</div></div>
+      <div class="kv"><div class="label">Adresse</div><div class="value">${esc(v.vermieterAdresse || "_______________")}</div></div>
+    </div>
+    <div>
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Mieter</div>
+      <div class="kv"><div class="label">Name / Firma</div><div class="value">${esc(k.betreiberName || "_______________")}</div></div>
+      <div class="kv"><div class="label">Adresse</div><div class="value">${esc(k.betreiberAdresse || "_______________")}</div></div>
+      ${k.betreiberEmail ? `<div class="kv"><div class="label">E-Mail</div><div class="value">${esc(k.betreiberEmail)}</div></div>` : ""}
+      ${k.betreiberTelefon ? `<div class="kv"><div class="label">Telefon</div><div class="value">${esc(k.betreiberTelefon)}</div></div>` : ""}
+    </div>
+  </div>
+
+  <h2>§ 2 Mietobjekt</h2>
+  <div class="grid2">
+    <div class="kv"><div class="label">Adresse</div><div class="value">${esc(adresse)}</div></div>
+    <div class="kv"><div class="label">Wohnfläche</div><div class="value">${esc(m.sqm || "—")} m²</div></div>
+    <div class="kv"><div class="label">Zimmer</div><div class="value">${esc(m.rooms || "—")}</div></div>
+    <div class="kv"><div class="label">Etage</div><div class="value">${m.floor != null ? esc(m.floor) + ". OG" : "—"}</div></div>
+  </div>
+  <p style="margin-top:8px">Das Mietobjekt wird möbliert übergeben. Die Einrichtungsgegenstände sind im Übergabeprotokoll festgehalten.</p>
+
+  <h2>§ 3 Mietbeginn und Mietdauer</h2>
+  <div class="grid2">
+    <div class="kv"><div class="label">Mietbeginn</div><div class="value">${mietbeginn}</div></div>
+    <div class="kv"><div class="label">Mietdauer</div><div class="value">${c.leaseDuration ? esc(c.leaseDuration) + " Monate" : "Unbefristet"}</div></div>
+  </div>
+  <p style="margin-top:8px">${c.leaseDuration ? `Das Mietverhältnis ist auf ${esc(c.leaseDuration)} Monate befristet und endet ohne Kündigung automatisch.` : "Das Mietverhältnis läuft auf unbestimmte Zeit und kann von beiden Parteien mit einer Frist von 3 Monaten zum Monatsende schriftlich gekündigt werden."}</p>
+
+  <h2>§ 4 Mietzins und Nebenkosten</h2>
+  <div class="highlight">
+    <div class="grid2">
+      <div class="kv"><div class="label">Kaltmiete / Monat</div><div class="value" style="font-size:15px;font-weight:700">${esc(eur(c.coldRent))}</div></div>
+      <div class="kv"><div class="label">Nebenkosten / Monat</div><div class="value" style="font-size:15px;font-weight:700">${esc(eur(c.nk))}</div></div>
+      <div class="kv"><div class="label">Gesamtmiete / Monat</div><div class="value" style="font-size:17px;font-weight:800;color:#15803d">${esc(eur(gesamtmiete))}</div></div>
+      <div class="kv"><div class="label">Kaution</div><div class="value" style="font-size:15px;font-weight:700">${esc(eur(c.deposit))}</div></div>
+    </div>
+  </div>
+  <p>Die Miete ist monatlich im Voraus, spätestens am 3. Werktag eines Monats, zu überweisen. Die Nebenkosten werden als Pauschale erhoben.</p>
+
+  <h2>§ 5 Kaution</h2>
+  <p>Der Mieter leistet vor Mietbeginn eine Kaution von <strong>${esc(eur(c.deposit))}</strong>. Sie wird nach Beendigung des Mietverhältnisses und Klärung aller Ansprüche zurückgezahlt.</p>
+
+  <h2>§ 6 Nutzungszweck</h2>
+  <p>Das Mietobjekt wird vom Mieter zur <strong>gewerblichen Kurzzeitvermietung (u. a. über Airbnb)</strong> genutzt. Der Vermieter erteilt hiermit ausdrücklich seine Zustimmung. Der Mieter verpflichtet sich, alle erforderlichen Genehmigungen, Registrierungen und steuerlichen Anmeldungen eigenverantwortlich einzuholen und nachzuweisen.</p>
+
+  <h2>§ 7 Instandhaltung und Schönheitsreparaturen</h2>
+  <p>Der Mieter übernimmt die laufende Pflege und Instandhaltung des Mietobjekts sowie der Einrichtung auf eigene Kosten. Schäden über normale Abnutzung hinaus sind vom Mieter zu beheben. Bei Auszug ist das Objekt ordnungsgemäß zurückzugeben.</p>
+
+  <h2>§ 8 Hausordnung und Gästepflichten</h2>
+  <p>Der Mieter verpflichtet sich, die Hausordnung einzuhalten und Gästen zugänglich zu machen. Ruhestörungen und Veranstaltungen über den normalen Beherbergungsbetrieb hinaus sind untersagt. Der Mieter haftet für Schäden durch seine Gäste.</p>
+
+  <h2>§ 9 Versicherungen</h2>
+  <p>Der Mieter ist verpflichtet, eine geeignete Haftpflichtversicherung für die Kurzzeitvermietung abzuschließen und auf Verlangen nachzuweisen.</p>
+
+  <h2>§ 10 Kündigung</h2>
+  <p>${c.leaseDuration ? `Das Mietverhältnis ist befristet und endet automatisch. Eine ordentliche Kündigung ist ausgeschlossen.` : "Kündigungsfrist: 3 Monate zum Monatsende, schriftlich."} Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.</p>
+
+  ${v.besonderes ? `<h2>§ 11 Besondere Vereinbarungen</h2><p style="white-space:pre-wrap">${esc(v.besonderes)}</p>` : ""}
+
+  <h2>${v.besonderes ? "§ 12" : "§ 11"} Schlussbestimmungen</h2>
+  <p>Änderungen bedürfen der Schriftform. Unwirksame Bestimmungen lassen den Vertrag im Übrigen unberührt. Gerichtsstand ist der Ort des Mietobjekts.</p>
+
+  <div class="sig-block">
+    <div>
+      <div class="sig-line"></div>
+      <div style="font-weight:600">${esc(v.vermieterName || "Vermieter")}</div>
+      <div class="note">Ort, Datum / Unterschrift Vermieter</div>
+    </div>
+    <div>
+      <div class="sig-line"></div>
+      <div style="font-weight:600">${esc(k.betreiberName || "Mieter")}</div>
+      <div class="note">Ort, Datum / Unterschrift Mieter</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
 function konzeptHtml(p) {
   const k = p.konzept || {};
   const m = p.meta || {};
@@ -972,6 +1104,137 @@ function TabKarte({ properties }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function TabMietvertrag({ properties }) {
+  const [selectedId, setSelectedId] = useState(properties[0]?.id || "");
+  const [vermieterName, setVermieterName] = useState("");
+  const [vermieterAdresse, setVermieterAdresse] = useState("");
+  const [mietbeginn, setMietbeginn] = useState(todayStr());
+  const [besonderes, setBesonderes] = useState("");
+
+  const p = properties.find(x => x.id === selectedId);
+
+  const handleOpen = () => {
+    if (!p) return;
+    const win = window.open("", "_blank");
+    if (!win) { alert("Pop-up-Blocker aktiv — bitte kurz deaktivieren."); return; }
+    win.document.write(mietvertragHtml(p, { vermieterName, vermieterAdresse, mietbeginn, besonderes }));
+    win.document.close();
+  };
+
+  const panelStyle = { background: "#ffffff", borderRadius: 14, padding: 20, border: "1px solid #f1f5f9", marginBottom: 20 };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 };
+
+  return (
+    <div>
+      <SectionTitle icon="📝" title="Mietvertrag" sub="Untermietvertrag generieren und als PDF speichern" />
+
+      {properties.length === 0 ? (
+        <div style={{ background: "#f1f5f9", borderRadius: 10, padding: 32, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+          Noch keine Objekte gespeichert. Erstelle zuerst eine Einheit.
+        </div>
+      ) : (
+        <>
+          {/* Objekt-Auswahl */}
+          <div style={panelStyle}>
+            <div style={labelStyle}>Einheit auswählen</div>
+            <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+              style={{ ...{ width: "100%", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", color: "#0f172a", fontSize: 14, fontFamily: "'DM Mono', monospace", outline: "none" } }}>
+              {properties.map(x => (
+                <option key={x.id} value={x.id}>{x.meta.name || "Unbenannt"} – {x.meta.city || "—"}</option>
+              ))}
+            </select>
+            {p && (
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                {[
+                  { label: "Adresse", value: [p.meta.address, p.meta.city].filter(Boolean).join(", ") || "—" },
+                  { label: "Fläche", value: p.meta.sqm ? p.meta.sqm + " m²" : "—" },
+                  { label: "Kaltmiete", value: eur(p.costs.coldRent) },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: "#f8fafc", borderRadius: 8, padding: "10px 12px", border: "1px solid #f1f5f9" }}>
+                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Vermieter-Daten */}
+          <div style={panelStyle}>
+            <div style={labelStyle}>Vermieter</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Input label="Name / Firma" value={vermieterName} onChange={setVermieterName} type="text" half />
+              <Input label="Adresse (Straße, PLZ Ort)" value={vermieterAdresse} onChange={setVermieterAdresse} type="text" half />
+            </div>
+          </div>
+
+          {/* Mieter-Daten (aus Konzept) */}
+          <div style={panelStyle}>
+            <div style={labelStyle}>Mieter (aus Konzept-Tab)</div>
+            {p && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  { label: "Name / Firma", value: p.konzept?.betreiberName || "—" },
+                  { label: "Adresse", value: p.konzept?.betreiberAdresse || "—" },
+                  { label: "E-Mail", value: p.konzept?.betreiberEmail || "—" },
+                  { label: "Telefon", value: p.konzept?.betreiberTelefon || "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: value === "—" ? "#94a3b8" : "#0f172a", fontWeight: 500 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {p && !p.konzept?.betreiberName && (
+              <div style={{ marginTop: 10, fontSize: 12, color: "#d97706", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
+                ⚠ Mieter-Daten fehlen — bitte im Konzept-Tab der Einheit eintragen.
+              </div>
+            )}
+          </div>
+
+          {/* Vertragsdetails */}
+          <div style={panelStyle}>
+            <div style={labelStyle}>Vertragsdetails</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Input label="Mietbeginn" value={mietbeginn} onChange={setMietbeginn} type="date" half />
+              {p && (
+                <div style={{ width: "calc(50% - 6px)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>Mietdauer</div>
+                  <div style={{ background: "#f1f5f9", borderRadius: 8, padding: "9px 12px", fontSize: 14, color: "#0f172a" }}>
+                    {p.costs.leaseDuration ? p.costs.leaseDuration + " Monate (aus Kosten-Tab)" : "Unbefristet"}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Besondere Vereinbarungen */}
+          <div style={panelStyle}>
+            <div style={labelStyle}>Besondere Vereinbarungen (optional)</div>
+            <textarea
+              value={besonderes}
+              onChange={e => setBesonderes(e.target.value)}
+              placeholder="z. B. Sonderregelungen, individuelle Absprachen..."
+              rows={4}
+              style={{ width: "100%", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", color: "#0f172a", fontSize: 14, fontFamily: "'DM Mono', monospace", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {/* Export */}
+          <button onClick={handleOpen}
+            style={{ width: "100%", background: "#16a34a", border: "none", borderRadius: 12, padding: "16px 24px", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+            📝 Mietvertrag öffnen → Als PDF speichern
+          </button>
+          <div style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginTop: 10 }}>
+            Dokument öffnet sich in neuem Tab → Drucken (Cmd+P) → "Als PDF speichern"
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1868,8 +2131,9 @@ const TABS = [
 ];
 
 const GLOBAL_VIEWS = [
-  { id: "portfolio", label: "Portfolio", icon: "🏦" },
-  { id: "karte",     label: "Karte",     icon: "🗺️" },
+  { id: "portfolio",   label: "Portfolio",   icon: "🏦" },
+  { id: "karte",       label: "Karte",       icon: "🗺️" },
+  { id: "mietvertrag", label: "Mietvertrag", icon: "📝" },
 ];
 
 export default function App() {
@@ -2022,8 +2286,9 @@ export default function App() {
           </>
         )}
         <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
-          {globalView === "portfolio" && <TabPortfolio properties={properties} />}
-          {globalView === "karte"     && <TabKarte properties={properties} />}
+          {globalView === "portfolio"   && <TabPortfolio properties={properties} />}
+          {globalView === "karte"       && <TabKarte properties={properties} />}
+          {globalView === "mietvertrag" && <TabMietvertrag properties={properties} />}
           {!globalView && tab === "stammdaten" && <TabStammdaten p={current} set={setCurrent} />}
           {!globalView && tab === "kosten"     && <TabKosten p={current} set={setCurrent} />}
           {!globalView && tab === "einnahmen"  && <TabEinnahmen p={current} set={setCurrent} />}
