@@ -312,7 +312,7 @@ function konzeptHtml(p) {
   .kv .value{font-size:14px;font-weight:600;color:#111827}
   table{width:100%;border-collapse:collapse;margin-top:8px}
   th{background:#f3f4f6;text-align:left;padding:8px 12px;font-size:12px;font-weight:700;color:#9ca3af;letter-spacing:1px;text-transform:uppercase}
-  .highlight{background:#f0fdf4;border-radius:10px;padding:18px 24px;margin-bottom:16px;border:1px solid #bbf7d0}
+  .highlight{background:#f8fafc;border-radius:10px;padding:18px 24px;margin-bottom:16px;border:1px solid #bbf7d0}
   .highlight .value{font-size:28px;font-weight:800;color:#15803d}
   .note{font-size:12px;color:#6b7280;margin-top:8px;font-style:italic}
   .signature{margin-top:48px;padding-top:24px;border-top:1px solid #e5e7eb}
@@ -493,7 +493,7 @@ function Row({ label, value, bold, minus, green, indent }) {
 }
 function KPI({ label, value, sub, color = "#0f172a", size = 22 }) {
   return (
-    <div style={{ background: "#f0fdf4", borderRadius: 12, padding: "14px 16px", border: "1px solid #f1f5f9" }}>
+    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "14px 16px", border: "1px solid #f1f5f9" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
       <div style={{ fontSize: size, fontWeight: 800, color, fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 5 }}>{sub}</div>}
@@ -505,7 +505,7 @@ function KPI({ label, value, sub, color = "#0f172a", size = 22 }) {
 const STATUS_CONFIG = {
   offen:    { label: "Offen",          color: "#94a3b8", bg: "#f1f5f9",   dot: "○" },
   aktiv:    { label: "In Bearbeitung", color: "#d97706", bg: "#fff7ed",   dot: "◑" },
-  erledigt: { label: "Erledigt",       color: "#16a34a", bg: "#dcfce7",   dot: "●" },
+  erledigt: { label: "Erledigt",       color: "#16a34a", bg: "#f1f5f9",   dot: "●" },
 };
 const STATUS_CYCLE = { offen: "aktiv", aktiv: "erledigt", erledigt: "offen" };
 
@@ -517,7 +517,7 @@ function MilestoneCard({ milestone, phaseColor, onUpdate, onDelete }) {
   const overdue = isOverdue(milestone.dueDate, milestone.status);
 
   return (
-    <div style={{ background: "#f0fdf4", borderRadius: 12, marginBottom: 10, border: `1px solid ${milestone.status === "erledigt" ? phaseColor + "44" : "#f1f5f9"}`, overflow: "hidden" }}>
+    <div style={{ background: "#f8fafc", borderRadius: 12, marginBottom: 10, border: `1px solid ${milestone.status === "erledigt" ? phaseColor + "44" : "#f1f5f9"}`, overflow: "hidden" }}>
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
         <button onClick={e => { e.stopPropagation(); onUpdate({ ...milestone, status: STATUS_CYCLE[milestone.status] }); }}
@@ -671,7 +671,7 @@ function TabProjekt({ p, set }) {
               { label: "Aktiv", value: activeM, color: "#d97706" },
               { label: "Überfällig", value: overdueM, color: overdueM > 0 ? "#dc2626" : "#e2e8f0" },
             ].map((s, i) => (
-              <div key={i} style={{ background: "#f0fdf4", borderRadius: 10, padding: "10px 14px", textAlign: "center", minWidth: 60 }}>
+              <div key={i} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 14px", textAlign: "center", minWidth: 60 }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
                 <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{s.label}</div>
               </div>
@@ -691,7 +691,7 @@ function TabProjekt({ p, set }) {
             <input type="date" value={p.project?.targetLaunch || ""} onChange={e => setProjectField("targetLaunch")(e.target.value)} style={{ ...inputStyle, fontSize: 12, padding: "7px 10px" }} />
           </div>
           {daysBetween !== null && (
-            <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 8, padding: "7px 14px", display: "flex", alignItems: "center", gap: 8, border: "1px solid #f1f5f9" }}>
+            <div style={{ flex: 1, background: "#f8fafc", borderRadius: 8, padding: "7px 14px", display: "flex", alignItems: "center", gap: 8, border: "1px solid #f1f5f9" }}>
               <div>
                 <div style={{ fontSize: 10, color: "#64748b", letterSpacing: 1 }}>ZEITRAUM</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: daysBetween >= 0 ? "#16a34a" : "#dc2626", fontFamily: "'DM Mono', monospace" }}>{Math.abs(daysBetween)} Tage</div>
@@ -867,7 +867,7 @@ function TabStammdaten({ p, set }) {
   return (
     <div>
       {/* Status toggle */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: isAktiv ? "#dcfce7" : "#ffffff", borderRadius: 12, border: `1px solid ${isAktiv ? "#16a34a44" : "#e2e8f0"}`, marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: isAktiv ? "#f1f5f9" : "#ffffff", borderRadius: 12, border: `1px solid ${isAktiv ? "#16a34a44" : "#e2e8f0"}`, marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: isAktiv ? "#16a34a" : "#475569" }}>
             {isAktiv ? "✓ Im Betrieb" : "○ Watchlist"}
@@ -1009,7 +1009,7 @@ function TabKosten({ p, set }) {
             <Input label="Sonstige Setupkosten (€)" value={p.setup.otherSetup} onChange={u("setup","otherSetup")} prefix="€" />
             <Input label="Amortisationszeitraum (Monate)" value={p.setup.amortMonths} onChange={u("setup","amortMonths")} />
           </div>
-          <div style={{ background: "#f0fdf4", borderRadius: 12, padding: 16, marginTop: 12, border: "1px solid #f1f5f9" }}>
+          <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, marginTop: 12, border: "1px solid #f1f5f9" }}>
             <Row label="Gesamt Einrichtung" value={totalSetup} />
             <Row label="Amortisation mtl." value={setupMonthly} />
             <Row label="Kaution" value={p.costs.deposit} />
@@ -1051,13 +1051,13 @@ function TabEinnahmen({ p, set }) {
             <Input label="Leerstand pro Jahr (Monate)" value={p.longterm.vacancyMonths} onChange={u("longterm","vacancyMonths")} step={0.5} />
           </div>
           {p.longterm.expectedRent > 0 && (
-            <div style={{ background: "#f0fdf4", borderRadius: 12, padding: 16, marginTop: 8, border: "1px solid #f1f5f9" }}>
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, marginTop: 8, border: "1px solid #f1f5f9" }}>
               <Row label="Ø Einnahme LZ (mtl.)" value={lt.monthlyRent} green />
               <Row label="Fixkosten" value={lt.fixedCosts} minus />
               <Row label="Monatl. Gewinn LZ" value={lt.profit} bold green={lt.profit >= 0} minus={lt.profit < 0} />
             </div>
           )}
-          <div style={{ background: "#f0fdf4", borderRadius: 12, padding: 14, marginTop: 14, border: "1px solid #f1f5f9" }}>
+          <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, marginTop: 14, border: "1px solid #f1f5f9" }}>
             <div style={{ fontSize: 11, color: "#d97706", fontWeight: 700, marginBottom: 8 }}>⚡ Airbnb (realistisch)</div>
             <Row label="Einnahmen" value={r.revenue} green />
             <Row label="Gesamtkosten" value={r.totalCosts} minus />
@@ -1082,7 +1082,7 @@ function TabAuswertung({ p }) {
       <SectionTitle icon="📊" title="Auswertung & Rentabilität" sub="Vollständige Kalkulation aller Szenarien" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
         {results.map(r => (
-          <div key={r.key} style={{ background: "#f0fdf4", borderRadius: 14, padding: 18, border: `1px solid ${r.color}33` }}>
+          <div key={r.key} style={{ background: "#f8fafc", borderRadius: 14, padding: 18, border: `1px solid ${r.color}33` }}>
             <div style={{ fontSize: 11, color: r.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>{r.dot} {r.label}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
               <KPI label="Nächte/Monat" value={r.nights} sub={`${pct(r.occupancy)} Auslastung`} color="#1e293b" size={18} />
@@ -1109,7 +1109,7 @@ function TabAuswertung({ p }) {
         ))}
       </div>
       {p.longterm.expectedRent > 0 && (
-        <div style={{ background: "#f0fdf4", borderRadius: 14, padding: 18, marginBottom: 16, border: "1px solid #f1f5f9" }}>
+        <div style={{ background: "#f8fafc", borderRadius: 14, padding: 18, marginBottom: 16, border: "1px solid #f1f5f9" }}>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 14, textTransform: "uppercase" }}>🔄 Airbnb vs. Langzeitmiete</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             {results.map(r => {
@@ -1126,7 +1126,7 @@ function TabAuswertung({ p }) {
           </div>
         </div>
       )}
-      <div style={{ background: "#f0fdf4", borderRadius: 14, padding: 18, border: "1px solid #f1f5f9", marginBottom: 14 }}>
+      <div style={{ background: "#f8fafc", borderRadius: 14, padding: 18, border: "1px solid #f1f5f9", marginBottom: 14 }}>
         <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>📅 Jahresübersicht (realistisch)</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
           {(() => { const r = results[1]; return [
@@ -1263,7 +1263,7 @@ function TabUmnutzung({ p, set }) {
           <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: 1.5, textTransform: "uppercase" }}>Gesamtfortschritt</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#16a34a" }}>{progress} %</span>
         </div>
-        <div style={{ height: 6, background: "#f0fdf4", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ height: 6, background: "#f8fafc", borderRadius: 3, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #16a34a, #22d3ee)", borderRadius: 3, transition: "width 0.4s ease" }} />
         </div>
         <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{doneItems} von {totalItems} Punkten abgehakt</div>
@@ -1280,7 +1280,7 @@ function TabUmnutzung({ p, set }) {
           <div key={step.id} style={{ background: "#f1f5f9", borderRadius: 10, marginBottom: 10, border: `1px solid ${isOpen ? step.color + "44" : "#e2e8f0"}`, overflow: "hidden", transition: "border 0.2s" }}>
             <div onClick={() => setExpanded(isOpen ? null : step.id)}
               style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: allDone ? "#15803d22" : "#f0fdf4", border: `2px solid ${allDone ? "#16a34a" : step.color}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: allDone ? "#16a34a" : step.color }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: allDone ? "#15803d22" : "#f8fafc", border: `2px solid ${allDone ? "#16a34a" : step.color}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: allDone ? "#16a34a" : step.color }}>
                 {allDone ? "✓" : idx + 1}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1295,7 +1295,7 @@ function TabUmnutzung({ p, set }) {
             </div>
 
             {isOpen && (
-              <div style={{ padding: "0 18px 18px", borderTop: "1px solid #f0fdf4" }}>
+              <div style={{ padding: "0 18px 18px", borderTop: "1px solid #f8fafc" }}>
                 <p style={{ color: "#475569", fontSize: 13, lineHeight: 1.7, margin: "14px 0 12px" }}>{step.description}</p>
 
                 {step.warning && (
@@ -1329,7 +1329,7 @@ function TabUmnutzung({ p, set }) {
                 <textarea value={st.notes} rows={2}
                   onChange={e => setStep(step.id, { ...st, notes: e.target.value })}
                   placeholder="Eigene Notizen zu diesem Schritt…"
-                  style={{ width: "100%", background: "#f0fdf4", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", color: "#0f172a", fontSize: 13, boxSizing: "border-box", fontFamily: "'DM Mono', monospace", outline: "none", resize: "vertical", lineHeight: 1.5 }} />
+                  style={{ width: "100%", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", color: "#0f172a", fontSize: 13, boxSizing: "border-box", fontFamily: "'DM Mono', monospace", outline: "none", resize: "vertical", lineHeight: 1.5 }} />
               </div>
             )}
           </div>
@@ -1550,7 +1550,7 @@ function TabTracker({ p, set }) {
 
       {/* Geplant vs Ist */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <div style={{ background: "#f0fdf4", borderRadius: 14, padding: 18, border: "1px solid #f1f5f9" }}>
+        <div style={{ background: "#f8fafc", borderRadius: 14, padding: 18, border: "1px solid #f1f5f9" }}>
           <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>📋 Geplant (realistisch)</div>
           <Row label="Einnahmen" value={planned.revenue} green />
           <Row label="Variable Kosten" value={planned.varCosts} minus />
@@ -1559,7 +1559,7 @@ function TabTracker({ p, set }) {
             <Row label="Gewinn" value={planned.profit} bold green={planned.profit >= 0} minus={planned.profit < 0} />
           </div>
         </div>
-        <div style={{ background: "#f0fdf4", borderRadius: 14, padding: 18, border: `1px solid ${hasData ? (actualProfit >= 0 ? "#16a34a33" : "#dc262633") : "#f1f5f9"}` }}>
+        <div style={{ background: "#f8fafc", borderRadius: 14, padding: 18, border: `1px solid ${hasData ? (actualProfit >= 0 ? "#16a34a33" : "#dc262633") : "#f1f5f9"}` }}>
           <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
             {hasData ? "✅ Ist (erfasst)" : "⏳ Ist (keine Daten)"}
           </div>
@@ -1588,7 +1588,7 @@ function TabTracker({ p, set }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", letterSpacing: 1.5, textTransform: "uppercase" }}>📥 Einnahmen</div>
           <button onClick={() => { setAddType("revenue"); setForm({ category: "", amount: 0, note: "" }); }}
-            style={{ background: "#dcfce7", border: "1px solid #16a34a33", borderRadius: 6, padding: "4px 12px", color: "#16a34a", fontSize: 11, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+            style={{ background: "#f1f5f9", border: "1px solid #16a34a33", borderRadius: 6, padding: "4px 12px", color: "#16a34a", fontSize: 11, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
             + Einnahme
           </button>
         </div>
@@ -1646,7 +1646,7 @@ function TabTracker({ p, set }) {
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button onClick={addEntry}
-              style={{ background: addType === "revenue" ? "#dcfce7" : "#fee2e2", border: `1px solid ${addType === "revenue" ? "#16a34a" : "#dc2626"}`, borderRadius: 8, padding: "8px 20px", color: addType === "revenue" ? "#16a34a" : "#dc2626", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+              style={{ background: addType === "revenue" ? "#f1f5f9" : "#fee2e2", border: `1px solid ${addType === "revenue" ? "#16a34a" : "#dc2626"}`, borderRadius: 8, padding: "8px 20px", color: addType === "revenue" ? "#16a34a" : "#dc2626", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
               Speichern
             </button>
             <button onClick={() => setAddType(null)}
@@ -1731,7 +1731,7 @@ function TabPortfolio({ properties }) {
   const PropertyCard = ({ p, real, pess, opt, actualRev, actualExp, hasActual, pb, startup }) => {
     const actualProfit = actualRev - actualExp;
     return (
-      <div style={{ background: "#ffffff", borderRadius: 16, padding: 20, border: `1px solid ${p.status === "aktiv" ? "#dcfce7" : "#f1f5f9"}`, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ background: "#ffffff", borderRadius: 16, padding: 20, border: `1px solid ${p.status === "aktiv" ? "#f1f5f9" : "#f1f5f9"}`, display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Header */}
       <div>
         <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 3 }}>{p.meta.name || "Unbenannt"}</div>
@@ -1744,7 +1744,7 @@ function TabPortfolio({ properties }) {
           { label: "🟡 Real.", value: real.profit, nights: real.nights },
           { label: "🟢 Opt.",  value: opt.profit,  nights: opt.nights  },
         ].map((s, i) => (
-          <div key={i} style={{ background: "#f0fdf4", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+          <div key={i} style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
             <div style={{ fontSize: 9, color: "#64748b", marginBottom: 3 }}>{s.label}</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: s.value >= 0 ? "#16a34a" : "#dc2626", fontFamily: "'DM Mono', monospace" }}>{eur(s.value)}</div>
             <div style={{ fontSize: 9, color: "#94a3b8" }}>{s.nights} N.</div>
@@ -1753,7 +1753,7 @@ function TabPortfolio({ properties }) {
       </div>
       {/* Actual this month */}
       {hasActual ? (
-        <div style={{ background: "#f0fdf4", borderRadius: 10, padding: "10px 14px", border: `1px solid ${actualProfit >= 0 ? "#16a34a33" : "#dc262633"}` }}>
+        <div style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 14px", border: `1px solid ${actualProfit >= 0 ? "#16a34a33" : "#dc262633"}` }}>
           <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>Ist · {new Date(currentMonth + "-15").toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
             <span style={{ color: "#16a34a" }}>+{eur(actualRev)}</span>
@@ -1769,16 +1769,16 @@ function TabPortfolio({ properties }) {
       ) : null}
       {/* KPI row */}
       <div style={{ display: "flex", gap: 8 }}>
-        <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 8, padding: "8px 10px" }}>
+        <div style={{ flex: 1, background: "#f8fafc", borderRadius: 8, padding: "8px 10px" }}>
           <div style={{ fontSize: 9, color: "#64748b" }}>Break-even</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#d97706", fontFamily: "'DM Mono', monospace" }}>{real.beNights} N./Mo.</div>
         </div>
-        <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 8, padding: "8px 10px" }}>
+        <div style={{ flex: 1, background: "#f8fafc", borderRadius: 8, padding: "8px 10px" }}>
           <div style={{ fontSize: 9, color: "#64748b" }}>Kapital</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", fontFamily: "'DM Mono', monospace" }}>{eur(startup)}</div>
         </div>
         {real.paybackMonths && (
-          <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 8, padding: "8px 10px" }}>
+          <div style={{ flex: 1, background: "#f8fafc", borderRadius: 8, padding: "8px 10px" }}>
             <div style={{ fontSize: 9, color: "#64748b" }}>Amortis.</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>{real.paybackMonths} Mo.</div>
           </div>
@@ -1921,10 +1921,10 @@ export default function App() {
     return all.length > 0 ? Math.round((all.filter(m => m.status === "erledigt").length / all.length) * 100) : 0;
   };
 
-  if (!loaded) return <div style={{ background: "#f0fdf4", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontFamily: "'DM Mono', monospace" }}>Lade…</div>;
+  if (!loaded) return <div style={{ background: "#f8fafc", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontFamily: "'DM Mono', monospace" }}>Lade…</div>;
 
   return (
-    <div style={{ fontFamily: "'DM Mono', monospace", background: "#f0fdf4", minHeight: "100vh", display: "flex" }}>
+    <div style={{ fontFamily: "'DM Mono', monospace", background: "#f8fafc", minHeight: "100vh", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
 
       {/* Sidebar */}
