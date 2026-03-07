@@ -1092,6 +1092,47 @@ function TabStammdaten({ p, set }) {
   const [geoError, setGeoError] = useState(false);
   const [lageAnalyse, setLageAnalyse] = useState(null);
   const [lageLoading, setLageLoading] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState("");
+
+  const handleImportUrl = async () => {
+    if (!importUrl.trim()) return;
+    setImportLoading(true); setImportError(""); setImportResult(null);
+    try {
+      const res = await fetch(`/api/scrape?url=${encodeURIComponent(importUrl.trim())}`);
+      const data = await res.json();
+      if (data.error) { setImportError(data.error); }
+      else if (Object.keys(data).length === 0) { setImportError("Keine Daten gefunden – Seite eventuell geschützt."); }
+      else { setImportResult(data); }
+    } catch { setImportError("Verbindungsfehler."); }
+    setImportLoading(false);
+  };
+
+  const handleApplyImport = () => {
+    if (!importResult) return;
+    set(prev => ({
+      ...prev,
+      meta: {
+        ...prev.meta,
+        ...(importResult.name    && { name:    importResult.name }),
+        ...(importResult.address && { address: importResult.address }),
+        ...(importResult.city    && { city:    importResult.city }),
+        ...(importResult.zip     && { zip:     importResult.zip }),
+        ...(importResult.sqm     && { sqm:     importResult.sqm }),
+        ...(importResult.rooms   && { rooms:   importResult.rooms }),
+        ...(importResult.floor   && { floor:   importResult.floor }),
+      },
+      costs: {
+        ...prev.costs,
+        ...(importResult.coldRent && { coldRent: importResult.coldRent }),
+        ...(importResult.nk       && { nk:       importResult.nk }),
+        ...(importResult.deposit  && { deposit:  importResult.deposit }),
+      },
+    }));
+    setImportResult(null); setImportUrl("");
+  };
 
   const handleAnalyze = async () => {
     setLageLoading(true);
@@ -1114,8 +1155,54 @@ function TabStammdaten({ p, set }) {
   const isAktiv = p.status === "aktiv";
   const toggleStatus = () => set(prev => ({ ...prev, status: prev.status === "aktiv" ? "watchlist" : "aktiv" }));
 
+  const FIELD_LABELS = { name: "Name", address: "Adresse", city: "Stadt", zip: "PLZ", sqm: "m²", rooms: "Zimmer", floor: "Etage", coldRent: "Kaltmiete", nk: "Nebenkosten", deposit: "Kaution" };
+
   return (
     <div>
+      {/* Inserat-Import */}
+      <div style={{ background: "#ffffff", borderRadius: 12, border: "1px solid #f1f5f9", padding: 16, marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Inserat importieren</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="url"
+            value={importUrl}
+            onChange={e => { setImportUrl(e.target.value); setImportResult(null); setImportError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleImportUrl()}
+            placeholder="https://www.immobilienscout24.de/expose/..."
+            style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+          />
+          <button onClick={handleImportUrl} disabled={importLoading || !importUrl.trim()}
+            style={{ background: importLoading ? "#f1f5f9" : "#2563eb", border: "none", borderRadius: 8, padding: "9px 16px", color: importLoading ? "#94a3b8" : "white", fontSize: 12, cursor: importLoading ? "default" : "pointer", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+            {importLoading ? "Lade…" : "Importieren"}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>Unterstützt: Kleinanzeigen · ImmoScout24 · Immowelt</div>
+
+        {importError && (
+          <div style={{ marginTop: 10, background: "#fee2e2", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#dc2626" }}>
+            ⚠ {importError}
+          </div>
+        )}
+
+        {importResult && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", marginBottom: 8 }}>✓ Gefundene Felder:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {Object.entries(importResult).map(([k, v]) => (
+                <div key={k} style={{ background: "#f0fdf4", border: "1px solid #16a34a33", borderRadius: 6, padding: "4px 10px", fontSize: 11 }}>
+                  <span style={{ color: "#64748b" }}>{FIELD_LABELS[k] || k}: </span>
+                  <span style={{ color: "#0f172a", fontWeight: 600 }}>{typeof v === "number" && (k === "coldRent" || k === "nk" || k === "deposit") ? v + " €" : v}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleApplyImport}
+              style={{ background: "#16a34a", border: "none", borderRadius: 8, padding: "9px 20px", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>
+              ✓ Felder übernehmen
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Status toggle */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: isAktiv ? "#f1f5f9" : "#ffffff", borderRadius: 12, border: `1px solid ${isAktiv ? "#16a34a44" : "#e2e8f0"}`, marginBottom: 24 }}>
         <div>
