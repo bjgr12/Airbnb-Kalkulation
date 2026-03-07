@@ -1975,7 +1975,7 @@ export default function App() {
                           <div style={{ height: "100%", width: `${pb}%`, background: pb === 100 ? "#4ade80" : "#3b82f6", borderRadius: 1 }} />
                         </div>
                       )}
-                      <div onClick={e => { e.stopPropagation(); handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
+                      <div onClick={e => { e.stopPropagation(); if (window.confirm(`"${p.meta?.name || "Objekt"}" wirklich löschen?`)) handleDelete(p.id); }} style={{ fontSize: 9, color: "#ef4444", marginTop: 5, cursor: "pointer", opacity: 0.5 }}>✕ löschen</div>
                     </div>
                   );
                 })}
