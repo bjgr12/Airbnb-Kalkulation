@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  "https://trubusbpbjgjspgxptzi.supabase.co",
+  "sb_publishable_Hm3BDlbgKgarP88zHiQd9A_vQdKCZ0r"
+);
 
 // Fix Leaflet default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -2279,37 +2285,64 @@ export default function App() {
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Laden aus Supabase
   useEffect(() => {
     (async () => {
       try {
-        const raw = localStorage.getItem("prop-analyzer-v3");
-        if (raw) {
-          const data = JSON.parse(raw);
-          setProperties(data);
-          if (data.length > 0) { setActiveId(data[0].id); setCurrent(data[0]); }
+        const { data, error } = await supabase
+          .from("properties")
+          .select("id, data")
+          .order("updated_at", { ascending: true });
+        if (!error && data?.length > 0) {
+          const list = data.map(r => r.data);
+          setProperties(list);
+          setActiveId(list[0].id);
+          setCurrent(list[0]);
         }
       } catch {}
       setLoaded(true);
     })();
   }, []);
 
-  const persist = useCallback(async (list) => {
-    try { localStorage.setItem("prop-analyzer-v3", JSON.stringify(list)); } catch {}
+  // Echtzeit-Sync: Änderungen anderer Nutzer sofort anzeigen
+  useEffect(() => {
+    const channel = supabase
+      .channel("properties-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "properties" }, (payload) => {
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          const incoming = payload.new.data;
+          setProperties(prev => {
+            const exists = prev.find(p => p.id === incoming.id);
+            return exists ? prev.map(p => p.id === incoming.id ? incoming : p) : [...prev, incoming];
+          });
+        } else if (payload.eventType === "DELETE") {
+          setProperties(prev => prev.filter(p => p.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
+
+  const sbUpsert = async (p) => {
+    await supabase.from("properties").upsert({ id: p.id, data: p, updated_at: new Date().toISOString() });
+  };
+  const sbDelete = async (id) => {
+    await supabase.from("properties").delete().eq("id", id);
+  };
 
   const handleSave = async () => {
     const exists = properties.find(p => p.id === current.id);
     const updated = exists ? properties.map(p => p.id === current.id ? current : p) : [...properties, current];
     setProperties(updated); setActiveId(current.id);
-    await persist(updated);
+    await sbUpsert(current);
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
   const handleNew = () => { setCurrent(newProperty()); setActiveId(null); setTab("stammdaten"); setGlobalView(null); };
   const handleSelect = (p) => { setCurrent(p); setActiveId(p.id); setTab("stammdaten"); setGlobalView(null); };
   const handleDelete = async (id) => {
-    const updated = properties.filter(p => p.id !== id);
-    setProperties(updated); await persist(updated);
+    setProperties(prev => prev.filter(p => p.id !== id));
+    await sbDelete(id);
     if (activeId === id) handleNew();
   };
 
@@ -2321,8 +2354,8 @@ export default function App() {
       const data = JSON.parse(text);
       if (!data.meta || !data.costs) { alert("Ungültige Datei – kein gültiges Einheiten-JSON."); return; }
       const imported = { ...data, id: uid() };
-      const updated = [...properties, imported];
-      setProperties(updated); await persist(updated);
+      setProperties(prev => [...prev, imported]);
+      await sbUpsert(imported);
       handleSelect(imported);
     } catch { alert("Fehler beim Lesen der Datei."); }
     e.target.value = "";
