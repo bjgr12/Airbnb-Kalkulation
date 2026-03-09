@@ -1111,9 +1111,10 @@ function DocSection({ p, set }) {
   const handleOpen = async (id) => {
     const dataUrl = await photoDbGet(id);
     if (!dataUrl) { alert("Dokument nicht gefunden."); return; }
-    const win = window.open();
-    win.document.write(`<iframe src="${dataUrl}" style="width:100%;height:100%;border:none;margin:0"></iframe>`);
-    win.document.close();
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
   };
 
   const handleDelete = async (id) => {
