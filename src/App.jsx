@@ -322,6 +322,7 @@ const newProperty = () => ({
   project: { phases: DEFAULT_PHASES(), projectStart: todayStr(), targetLaunch: "" },
   umnutzung: { city: "", steps: {} },
   photos: [],
+  documents: [],
   tracker: { entries: [] },
   log: { entries: [] },
   konzept: { betreiberName: "", betreiberEmail: "", betreiberTelefon: "", betreiberAdresse: "" },
@@ -1086,6 +1087,83 @@ function PhotoGallery({ p, set }) {
   );
 }
 
+function DocSection({ p, set }) {
+  const docs = p.documents || [];
+  const fileRef = useRef();
+
+  const handleFiles = async (files) => {
+    const added = [];
+    for (const file of Array.from(files)) {
+      if (file.type !== "application/pdf") continue;
+      const dataUrl = await new Promise(res => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result);
+        reader.readAsDataURL(file);
+      });
+      const id = "doc-" + uid();
+      await photoDbSet(id, dataUrl);
+      added.push({ id, name: file.name, createdAt: new Date().toISOString() });
+    }
+    if (added.length > 0)
+      set(prev => ({ ...prev, documents: [...(prev.documents || []), ...added] }));
+  };
+
+  const handleOpen = async (id) => {
+    const dataUrl = await photoDbGet(id);
+    if (!dataUrl) { alert("Dokument nicht gefunden."); return; }
+    const win = window.open();
+    win.document.write(`<iframe src="${dataUrl}" style="width:100%;height:100%;border:none;margin:0"></iframe>`);
+    win.document.close();
+  };
+
+  const handleDelete = async (id) => {
+    await photoDbDel(id);
+    set(prev => ({ ...prev, documents: (prev.documents || []).filter(d => d.id !== id) }));
+  };
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <SectionTitle icon="📄" title="Dokumente" sub="Bebauungsplan, Grundriss und weitere PDFs ablegen" />
+      <div
+        onClick={() => fileRef.current?.click()}
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        style={{ border: "2px dashed #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center", cursor: "pointer", background: "#ffffff", marginBottom: 16 }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = "#94a3b8"}
+        onMouseLeave={e => e.currentTarget.style.borderColor = "#e2e8f0"}
+      >
+        <input ref={fileRef} type="file" multiple accept="application/pdf" style={{ display: "none" }}
+          onChange={e => handleFiles(e.target.files)} />
+        <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
+        <div style={{ fontSize: 13, color: "#64748b" }}>PDF auswählen oder hier ablegen</div>
+        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Nur PDF-Dateien</div>
+      </div>
+
+      {docs.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {docs.map(doc => (
+            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#ffffff", borderRadius: 10, padding: "10px 14px", border: "1px solid #f1f5f9" }}>
+              <span style={{ fontSize: 18 }}>📄</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(doc.createdAt).toLocaleDateString("de-DE")}</div>
+              </div>
+              <button onClick={() => handleOpen(doc.id)}
+                style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 7, padding: "5px 12px", fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+                Öffnen
+              </button>
+              <button onClick={() => handleDelete(doc.id)}
+                style={{ background: "transparent", border: "none", color: "#dc2626", fontSize: 16, cursor: "pointer", opacity: 0.5, padding: "0 4px" }}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabStammdaten({ p, set }) {
   const u = (s, k) => v => set(prev => ({ ...prev, [s]: { ...prev[s], [k]: v } }));
   const [geocoding, setGeocoding] = useState(false);
@@ -1208,6 +1286,7 @@ function TabStammdaten({ p, set }) {
       <div style={{ marginTop: 28 }}>
         <PhotoGallery p={p} set={set} />
       </div>
+      <DocSection p={p} set={set} />
     </div>
   );
 }
